@@ -97,7 +97,7 @@ export default function DashboardPage() {
             {highRiskTasks.map((task) => (
               <Link
                 key={task.id}
-                href={`/tasks/detail?id=`}
+                href={`/tasks/detail?id=${task.id}`}
                 className="flex items-center justify-between rounded-lg bg-white p-3 hover:shadow-sm transition-shadow"
               >
                 <div className="flex items-center gap-3">
