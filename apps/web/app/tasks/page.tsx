@@ -18,15 +18,10 @@ const TASK_TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  draft: { label: "草稿", color: "bg-gray-100 text-gray-600" },
-  pending_info: { label: "待补充", color: "bg-yellow-100 text-yellow-700" },
+  draft: { label: "待处理", color: "bg-gray-100 text-gray-600" },
   analyzing: { label: "分析中", color: "bg-blue-100 text-blue-700" },
-  waiting_confirmation: { label: "待确认", color: "bg-orange-100 text-orange-700" },
-  ready_to_execute: { label: "可执行", color: "bg-green-100 text-green-700" },
   in_progress: { label: "进行中", color: "bg-blue-100 text-blue-700" },
-  waiting_response: { label: "等回复", color: "bg-yellow-100 text-yellow-700" },
   completed: { label: "已完成", color: "bg-green-100 text-green-800" },
-  failed: { label: "失败", color: "bg-red-100 text-red-700" },
   archived: { label: "已归档", color: "bg-gray-100 text-gray-500" },
 };
 

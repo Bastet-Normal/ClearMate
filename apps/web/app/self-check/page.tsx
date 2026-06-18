@@ -128,9 +128,9 @@ export default function SelfCheckPage() {
       </div>
 
       {submitted && (
-        <div className="mt-6 rounded-xl border-2 p-6 ${
-          dangerCount >= 4 ? 'border-red-200 bg-red-50' : dangerCount >= 2 ? 'border-orange-200 bg-orange-50' : 'border-yellow-200 bg-yellow-50'
-        }">
+        <div className={`mt-6 rounded-xl border-2 p-6 ${
+          dangerCount >= 4 ? "border-red-200 bg-red-50" : dangerCount >= 2 ? "border-orange-200 bg-orange-50" : "border-yellow-200 bg-yellow-50"
+        }`}>
           {dangerCount >= 4 ? (
             <>
               <h3 className="text-lg font-bold text-red-700">🚨 高度警惕！你可能正在遭遇风险</h3>

@@ -52,18 +52,25 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoggedIn(isLoggedIn());
-    const user = getStoredUser();
-    if (user) setMemberMode(user.member_mode as MemberMode);
+    // 优先读独立 key，其次读 user.member_mode
+    const elderPref = localStorage.getItem("cm_elder_mode");
+    if (elderPref === "elder" || elderPref === "normal") {
+      setMemberMode(elderPref as MemberMode);
+    } else {
+      const user = getStoredUser();
+      if (user) setMemberMode(user.member_mode as MemberMode);
+    }
   }, []);
 
   function toggleElderMode() {
     const newMode: MemberMode = memberMode === "elder" ? "normal" : "elder";
     setMemberMode(newMode);
+    // 持久化到独立 key，不依赖用户登录状态
+    localStorage.setItem("cm_elder_mode", newMode);
     const user = getStoredUser();
     if (user) {
       setStoredUser({ ...user, member_mode: newMode });
     }
-    // 刷新页面以应用样式变化
     window.location.reload();
   }
 

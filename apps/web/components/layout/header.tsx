@@ -13,10 +13,13 @@ export function Header() {
 
   useEffect(() => {
     setLoggedIn(isLoggedIn());
+    const elderPref = localStorage.getItem("cm_elder_mode");
     const user = getStoredUser();
     if (user) {
       setNickname(user.nickname);
-      setIsElder(user.member_mode === "elder");
+      setIsElder(elderPref === "elder" || user.member_mode === "elder");
+    } else {
+      setIsElder(elderPref === "elder");
     }
   }, []);
 
@@ -30,6 +33,7 @@ export function Header() {
   function toggleElderMode() {
     const newMode = isElder ? "normal" : "elder";
     setIsElder(newMode === "elder");
+    localStorage.setItem("cm_elder_mode", newMode);
     const user = getStoredUser();
     if (user) setStoredUser({ ...user, member_mode: newMode });
     window.location.reload();
