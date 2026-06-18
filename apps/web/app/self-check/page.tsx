@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 interface Question {
@@ -8,6 +8,8 @@ interface Question {
   text: string;
   isDanger: boolean;
 }
+
+const STORAGE_KEY = "cm_self_check_results";
 
 const CHECKLISTS = [
   {
@@ -55,27 +57,69 @@ const CHECKLISTS = [
   },
 ];
 
+interface SavedResult {
+  listIndex: number;
+  answers: Record<string, boolean>;
+  dangerCount: number;
+  totalCount: number;
+  timestamp: string;
+}
+
+function saveResult(listIndex: number, answers: Record<string, boolean>, dangerCount: number, totalCount: number) {
+  const results: SavedResult[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  results[listIndex] = { listIndex, answers, dangerCount, totalCount, timestamp: new Date().toISOString() };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
+}
+
+function loadResults(): SavedResult[] {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
+}
+
 export default function SelfCheckPage() {
   const [activeList, setActiveList] = useState(0);
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [hasSavedResult, setHasSavedResult] = useState(false);
 
   const list = CHECKLISTS[activeList];
   const dangerCount = list.questions.filter((q) => answers[q.id]).length;
   const totalCount = list.questions.length;
 
+  // 加载已保存的结果
+  useEffect(() => {
+    const results = loadResults();
+    const saved = results[activeList];
+    if (saved) {
+      setAnswers(saved.answers);
+      setSubmitted(true);
+      setHasSavedResult(true);
+    } else {
+      setAnswers({});
+      setSubmitted(false);
+      setHasSavedResult(false);
+    }
+  }, [activeList]);
+
   function toggleAnswer(id: string) {
     setAnswers((prev) => ({ ...prev, [id]: !prev[id] }));
     setSubmitted(false);
+    setHasSavedResult(false);
   }
 
   function handleSubmit() {
     setSubmitted(true);
+    setHasSavedResult(true);
+    saveResult(activeList, answers, dangerCount, totalCount);
   }
 
   function resetAll() {
     setAnswers({});
     setSubmitted(false);
+    setHasSavedResult(false);
+    // 清除该类型的保存结果
+    const results = loadResults();
+    results[activeList] = undefined as any;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(results.filter(Boolean)));
   }
 
   return (
@@ -88,16 +132,21 @@ export default function SelfCheckPage() {
 
       {/* Checklist Type Tabs */}
       <div className="mb-6 flex gap-3">
-        {CHECKLISTS.map((cl, i) => (
-          <button key={i} onClick={() => { setActiveList(i); resetAll(); }}
-            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-              activeList === i
-                ? "btn-primary shadow-lg shadow-brand-500/25"
-                : "bg-white border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-600 shadow-sm"
-            }`}>
-            {cl.icon}
-          </button>
-        ))}
+        {CHECKLISTS.map((cl, i) => {
+          const savedResults = loadResults();
+          const hasSaved = !!savedResults[i];
+          return (
+            <button key={i} onClick={() => setActiveList(i)}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all relative ${
+                activeList === i
+                  ? "btn-primary shadow-lg shadow-brand-500/25"
+                  : "bg-white border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-600 shadow-sm"
+              }`}>
+              {cl.icon}
+              {hasSaved && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-green-500" />}
+            </button>
+          );
+        })}
       </div>
 
       {/* Checklist Card */}
@@ -129,11 +178,21 @@ export default function SelfCheckPage() {
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-          <span className="text-sm text-slate-500">已选 <span className="font-bold text-slate-800">{dangerCount}</span> / {totalCount} 项</span>
-          <button onClick={handleSubmit} disabled={dangerCount === 0}
-            className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
-            查看结果
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-500">已选 <span className="font-bold text-slate-800">{dangerCount}</span> / {totalCount} 项</span>
+            {hasSavedResult && submitted && <span className="text-xs text-green-600">✓ 已保存</span>}
+          </div>
+          <div className="flex gap-2">
+            {submitted && (
+              <button onClick={resetAll} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">
+                重新自检
+              </button>
+            )}
+            <button onClick={handleSubmit} disabled={dangerCount === 0}
+              className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
+              查看结果
+            </button>
+          </div>
         </div>
       </div>
 
@@ -153,8 +212,8 @@ export default function SelfCheckPage() {
               <div className="mt-4 space-y-2">
                 <p className="text-sm font-semibold text-red-700">建议立即：</p>
                 <div className="space-y-1.5">
-                  <p className="text-sm text-red-600">1. 拨打 <span className="inline-flex rounded-lg bg-white px-2 py-0.5 font-mono font-bold text-red-700 border border-red-200">96110</span>（反诈中心）咨询</p>
-                  <p className="text-sm text-red-600">2. 如已转账，立即拨打 <span className="inline-flex rounded-lg bg-white px-2 py-0.5 font-mono font-bold text-red-700 border border-red-200">110</span> 报警</p>
+                  <p className="text-sm text-red-600">1. 拨打 <a href="tel:96110" className="inline-flex rounded-lg bg-white px-2 py-0.5 font-mono font-bold text-red-700 border border-red-200 hover:bg-red-50 transition-colors">96110</a>（反诈中心）咨询</p>
+                  <p className="text-sm text-red-600">2. 如已转账，立即拨打 <a href="tel:110" className="inline-flex rounded-lg bg-white px-2 py-0.5 font-mono font-bold text-red-700 border border-red-200 hover:bg-red-50 transition-colors">110</a> 报警</p>
                   <p className="text-sm text-red-600">3. 保留所有聊天记录、转账凭证</p>
                 </div>
               </div>
@@ -175,7 +234,7 @@ export default function SelfCheckPage() {
             </>
           )}
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/tasks/new"
               className="btn-primary inline-flex rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25">
               创建任务让 AI 详细分析 →

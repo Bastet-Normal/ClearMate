@@ -11,6 +11,8 @@ import {
   saveAnalysis,
 } from "@/lib/local-store";
 import { analyzeTask } from "@/lib/mock-analysis";
+import { getStoredUser } from "@/lib/local-store";
+import { useToast } from "@/components/ui/toast";
 import type { Task, AnalysisResult } from "@/types";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -46,6 +48,11 @@ function TaskDetailContent() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
   const [showTemplate, setShowTemplate] = useState(-1);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const { showToast } = useToast();
+  const [elderAlertDismissed, setElderAlertDismissed] = useState(false);
 
   useEffect(() => {
     if (!taskId) { setError("缺少任务 ID"); setLoading(false); return; }
@@ -85,7 +92,35 @@ function TaskDetailContent() {
   function copyText(text: string, label: string) {
     navigator.clipboard.writeText(text);
     setCopied(label);
+    showToast("已复制到剪贴板");
     setTimeout(() => setCopied(""), 2000);
+  }
+
+  // 模板占位符自动填充
+  function fillTemplatePlaceholders(content: string): string {
+    const user = getStoredUser();
+    if (!user) return content;
+    return content
+      .replace(/\[你的姓名\]/g, user.nickname || "[你的姓名]")
+      .replace(/\[手机号\]/g, user.email ? `[手机号]` : "[手机号]");
+  }
+
+  function startEditing() {
+    if (!task) return;
+    setEditTitle(task.title);
+    setEditDesc(task.description);
+    setEditing(true);
+  }
+
+  function saveEdit() {
+    if (!task) return;
+    const updated = updateTask(taskId, { title: editTitle, description: editDesc });
+    if (updated) setTask(updated);
+    setEditing(false);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
   }
 
   if (loading) return <div className="mx-auto max-w-3xl px-6 py-16 text-center text-slate-400">加载中...</div>;
@@ -99,10 +134,29 @@ function TaskDetailContent() {
 
   const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.draft;
   const riskInfo = task.risk_level ? RISK_STYLES[task.risk_level] : null;
+  const isElderMode = typeof window !== "undefined" && localStorage.getItem("cm_elder_mode") === "elder";
+  const isHighRisk = task.risk_level === "high" || task.risk_level === "critical";
+  const showElderAlert = isElderMode && isHighRisk && !elderAlertDismissed;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <Link href="/tasks" className="text-sm text-slate-500 hover:text-brand-600 transition-colors">← 返回任务列表</Link>
+
+      {/* 老人模式高风险弹窗 */}
+      {showElderAlert && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-3xl border-4 border-red-400 bg-white p-8 shadow-2xl text-center">
+            <div className="mb-4 text-6xl">🚨</div>
+            <h2 className="mb-3 text-2xl font-bold text-red-700">高风险提醒</h2>
+            <p className="mb-2 text-lg text-red-600 font-semibold">此任务风险等级为<strong>{task.risk_level === "critical" ? "极高" : "高"}风险</strong></p>
+            <p className="mb-6 text-base text-slate-600">请务必谨慎处理，不要轻易转账或提供个人信息。如有疑问，请先咨询家人或拨打 <a href="tel:96110" className="font-bold text-red-700 underline">96110</a>。</p>
+            <button onClick={() => setElderAlertDismissed(true)}
+              className="w-full rounded-xl bg-red-600 px-8 py-4 text-lg font-bold text-white hover:bg-red-700 transition-colors shadow-lg">
+              我知道了，继续查看
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mt-6 mb-8">
@@ -110,12 +164,32 @@ function TaskDetailContent() {
           <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.color}`}>{statusInfo.label}</span>
           {riskInfo && <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${riskInfo.bg} ${riskInfo.text} ${riskInfo.border}`}>{riskInfo.label}</span>}
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">{task.title}</h1>
-        <p className="mt-2 text-sm text-slate-500">类型: {task.task_type} · 创建于 {new Date(task.created_at).toLocaleString("zh-CN")}</p>
+        {editing ? (
+          <div className="space-y-3">
+            <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3 text-2xl font-bold text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10" />
+            <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={6}
+              className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 resize-none" />
+            <div className="flex gap-3">
+              <button onClick={saveEdit} className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25">保存修改</button>
+              <button onClick={cancelEdit} className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">取消</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-3xl font-bold text-slate-900">{task.title}</h1>
+              <button onClick={startEditing} className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-all shadow-sm" title="编辑">
+                ✏️ 编辑
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-slate-500">类型: {task.task_type} · 创建于 {new Date(task.created_at).toLocaleString("zh-CN")}</p>
+          </>
+        )}
       </div>
 
-      {/* Description */}
-      {task.description && (
+      {/* Description — 非编辑模式显示 */}
+      {!editing && task.description && (
         <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <h3 className="mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">描述</h3>
           <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{task.description}</p>
@@ -124,7 +198,7 @@ function TaskDetailContent() {
 
       {/* High Risk Warning */}
       {riskInfo && (task.risk_level === "high" || task.risk_level === "critical") && (
-        <div className={`mb-6 rounded-2xl border-2 p-5 ${riskInfo.bg} ${riskInfo.border}`}>
+        <div className={`mb-6 rounded-2xl border-2 p-5 risk-high-alert ${riskInfo.bg} ${riskInfo.border}`}>
           <p className={`text-sm font-semibold ${riskInfo.text}`}>⚠️ 此任务风险等级较高，请谨慎处理。AI 分析仅供参考，重大决策请咨询专业人士。</p>
         </div>
       )}
@@ -160,6 +234,24 @@ function TaskDetailContent() {
             {analysis.suggested_actions?.length > 0 && <Section title="✅ 建议行动" items={analysis.suggested_actions} color="text-green-600" borderColor="border-green-200" />}
             {/* Questions */}
             {analysis.questions_to_verify?.length > 0 && <Section title="❓ 待核实事项" items={analysis.questions_to_verify} color="text-amber-600" borderColor="border-amber-200" />}
+            {/* Assumptions */}
+            {analysis.assumptions?.length > 0 && <Section title="💡 分析假设" items={analysis.assumptions} color="text-slate-500" borderColor="border-slate-200" />}
+
+            {/* Similar Cases */}
+            {analysis.similar_cases?.length > 0 && (
+              <div className="mb-3">
+                <h4 className="mb-2 text-xs font-semibold text-violet-600">📚 相似案例</h4>
+                <div className="space-y-2">
+                  {analysis.similar_cases.map((c, i) => (
+                    <div key={i} className="rounded-xl bg-violet-50 p-3 border border-violet-100">
+                      <p className="text-sm font-semibold text-violet-700">{c.title}</p>
+                      <p className="mt-1 text-xs text-violet-600 leading-relaxed">{c.pattern}</p>
+                      <p className="mt-1 text-xs text-violet-500 font-medium">💡 {c.advice}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Help Channels */}
             {analysis.help_channels?.length > 0 && (
@@ -170,9 +262,14 @@ function TaskDetailContent() {
                     <div key={i} className="rounded-xl bg-brand-50 p-3">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-brand-700">{ch.name}</span>
-                        <span className="rounded-lg bg-white px-2 py-0.5 text-xs font-mono font-bold text-brand-600 border border-brand-200">{ch.contact}</span>
+                        {/^\d+$/.test(ch.contact) ? (
+                          <a href={`tel:${ch.contact}`} className="rounded-lg bg-white px-2 py-0.5 text-xs font-mono font-bold text-brand-600 border border-brand-200 hover:bg-brand-100 transition-colors">{ch.contact}</a>
+                        ) : (
+                          <span className="rounded-lg bg-white px-2 py-0.5 text-xs font-mono font-bold text-brand-600 border border-brand-200">{ch.contact}</span>
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-brand-500">{ch.desc}</p>
+                      {ch.url && <a href={ch.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-brand-600 underline hover:text-brand-700">访问官网 →</a>}
                     </div>
                   ))}
                 </div>
@@ -229,8 +326,8 @@ function TaskDetailContent() {
                     </button>
                     {showTemplate === i && (
                       <div className="border-t border-slate-100 bg-slate-50 p-4">
-                        <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed">{tpl.content}</pre>
-                        <button onClick={() => copyText(tpl.content, `tpl-${i}`)}
+                        <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed">{fillTemplatePlaceholders(tpl.content)}</pre>
+                        <button onClick={() => copyText(fillTemplatePlaceholders(tpl.content), `tpl-${i}`)}
                           className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white transition-all shadow-sm">
                           {copied === `tpl-${i}` ? "✓ 已复制" : "📋 复制模板"}
                         </button>

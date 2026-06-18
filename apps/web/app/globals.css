@@ -60,9 +60,20 @@
 }
 
 /* 老人模式 */
-.elder-mode { font-size: 18px; line-height: 1.8; }
-.elder-mode button, .elder-mode a { min-height: 48px; min-width: 48px; }
-.elder-mode input, .elder-mode textarea { font-size: 18px; min-height: 48px; }
+.elder-mode { font-size: 20px; line-height: 2; }
+.elder-mode button, .elder-mode a { min-height: 52px; min-width: 52px; font-weight: 600; }
+.elder-mode input, .elder-mode textarea, .elder-mode select { font-size: 20px; min-height: 52px; }
+.elder-mode .btn-primary { font-size: 18px; padding: 12px 24px; }
+.elder-mode h1 { font-size: 2rem !important; }
+.elder-mode h2 { font-size: 1.5rem !important; }
+.elder-mode h3 { font-size: 1.25rem !important; }
+/* 老人模式：高风险任务醒目红色边框 */
+.elder-mode .risk-high-alert {
+  border: 3px solid #ef4444 !important;
+  background: #fef2f2 !important;
+  padding: 16px !important;
+  font-weight: 700 !important;
+}
 
 /* 移动端触摸优化 */
 @media (pointer: coarse) {

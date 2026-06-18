@@ -36,11 +36,12 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-6xl px-6 py-10">
       <div className="mb-10"><h1 className="text-3xl font-bold text-slate-900">你好，{stats.nickname} 👋</h1><p className="mt-1 text-sm text-slate-500">这是你的生活事务全景</p></div>
 
-      <div className="mb-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="总任务" value={stats.totalTasks} icon="📋" gradient="from-blue-500 to-indigo-500" />
         <StatCard label="待处理" value={stats.pendingTasks} icon="⏰" gradient="from-amber-500 to-orange-500" />
         <StatCard label="高风险" value={stats.highRiskTasks} icon="⚠️" gradient="from-red-500 to-rose-500" />
         <StatCard label="已完成" value={stats.completedTasks} icon="✅" gradient="from-green-500 to-emerald-500" />
+        <StatCard label="近7天新增" value={stats.recentTasks} icon="📈" gradient="from-violet-500 to-purple-500" />
       </div>
 
       {highRiskTasks.length > 0 && (
