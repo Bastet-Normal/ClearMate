@@ -128,9 +128,12 @@ function TaskDetailContent() {
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-700">AI 分析结果</h3>
-              <button onClick={() => copyText(formatAnalysisAsText(analysis), "all")} className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                {copied === "all" ? "✓ 已复制" : "复制全部"}
-              </button>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400">{new Date().toLocaleString("zh-CN")}</span>
+                <button onClick={() => copyText(formatAnalysisAsText(analysis), "all")} className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                  {copied === "all" ? "✓ 已复制" : "复制全部"}
+                </button>
+              </div>
             </div>
             <div className="mb-4 flex items-start gap-3">
               <span className={`mt-0.5 inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -170,7 +173,12 @@ function TaskDetailContent() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-gray-900">{ch.name}</span>
-                        <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-mono font-medium text-brand-700">{ch.contact}</span>
+                        {/* 电话号码可点击拨号 */}
+                        {/^\d{3,5}$/.test(ch.contact) ? (
+                          <a href={`tel:${ch.contact}`} className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-mono font-medium text-brand-700 hover:bg-brand-100 transition-colors">{ch.contact}</a>
+                        ) : (
+                          <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-mono font-medium text-brand-700">{ch.contact}</span>
+                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-gray-500">{ch.desc}</p>
                       {ch.url && <a href={ch.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-brand-600 hover:underline">访问官网 →</a>}
@@ -218,6 +226,14 @@ function TaskDetailContent() {
                   <div key={i} className="rounded-lg border-l-4 border-orange-300 bg-orange-50/50 p-3">
                     <h4 className="text-sm font-semibold text-gray-900">{c.title}</h4>
                     <p className="mt-1 text-xs text-gray-600">套路：{c.pattern}</p>
+                    {c.steps && c.steps.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-xs font-semibold text-orange-700">套路拆解：</p>
+                        {c.steps.map((step, j) => (
+                          <p key={j} className="text-xs text-gray-600 pl-2">{step}</p>
+                        ))}
+                      </div>
+                    )}
                     <p className="mt-1 text-xs font-medium text-orange-700">防范：{c.advice}</p>
                   </div>
                 ))}

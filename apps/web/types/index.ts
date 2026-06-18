@@ -53,6 +53,7 @@ export interface SimilarCase {
   title: string;
   pattern: string;
   advice: string;
+  steps?: string[];
 }
 
 export interface AnalysisResult {

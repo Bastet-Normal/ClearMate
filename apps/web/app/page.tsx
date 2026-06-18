@@ -51,6 +51,7 @@ export default function HomePage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [memberMode, setMemberMode] = useState<MemberMode>("normal");
   const [quickInput, setQuickInput] = useState("");
+  const [quickType, setQuickType] = useState("scam_check");
   const [quickResult, setQuickResult] = useState<AnalysisResult | null>(null);
   const [quickLoading, setQuickLoading] = useState(false);
 
@@ -131,17 +132,36 @@ export default function HomePage() {
       <div className="mb-16 rounded-2xl border-2 border-brand-100 bg-brand-50/30 p-6">
         <h2 className="mb-2 text-lg font-bold text-gray-900">⚡ 快速体验</h2>
         <p className="mb-4 text-sm text-gray-500">不用注册，直接输入你想查的内容，AI 立刻帮你分析</p>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {([
+            { value: "scam_check", label: "🔍 这是不是坑" },
+            { value: "refund_request", label: "💰 退款投诉" },
+            { value: "document_review", label: "📄 看懂文件" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setQuickType(opt.value); setQuickResult(null); }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${quickType === opt.value ? "bg-brand-600 text-white" : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-3">
           <input
             type="text"
             value={quickInput}
             onChange={(e) => setQuickInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && quickInput.trim()) { setQuickLoading(true); setQuickResult(analyzeTask("scam_check", quickInput, "")); setQuickLoading(false); } }}
-            placeholder="例如：收到短信说中奖了，要我转账100元解冻费"
+            onKeyDown={(e) => { if (e.key === "Enter" && quickInput.trim()) { setQuickLoading(true); setQuickResult(analyzeTask(quickType, quickInput, "")); setQuickLoading(false); } }}
+            placeholder={
+              quickType === "scam_check" ? "例如：收到短信说中奖了，要我转账100元解冻费" :
+              quickType === "refund_request" ? "例如：淘宝买了手机，付款后卖家不发货" :
+              "例如：租房合同里有一条自动续费条款看不懂"
+            }
             className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
           />
           <button
-            onClick={() => { if (!quickInput.trim()) return; setQuickLoading(true); setQuickResult(analyzeTask("scam_check", quickInput, "")); setQuickLoading(false); }}
+            onClick={() => { if (!quickInput.trim()) return; setQuickLoading(true); setQuickResult(analyzeTask(quickType, quickInput, "")); setQuickLoading(false); }}
             disabled={quickLoading || !quickInput.trim()}
             className="shrink-0 rounded-lg bg-brand-600 px-6 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
           >
