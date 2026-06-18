@@ -22,6 +22,7 @@ export interface AnalysisResult {
   questions_to_verify: string[];
   help_channels: Array<{ name: string; contact: string; desc: string; url?: string }>;
   templates: Array<{ title: string; content: string }>;
+  scam_steps?: Array<{ step: string; explanation: string }>;
   similar_cases: Array<{ title: string; pattern: string; advice: string }>;
   disclaimer: string;
 }
@@ -730,6 +731,9 @@ export function analyzeTask(
     questions_to_verify: questionsToVerify,
     help_channels: helpChannels,
     templates: templates,
+    scam_steps: similarCases.length > 0 && SCAM_STEPS[similarCases[0].title]
+      ? SCAM_STEPS[similarCases[0].title].map((s) => ({ step: s.split("：")[0] || s, explanation: s.split("：")[1] || s }))
+      : undefined,
     similar_cases: similarCases.map((c) => ({
       title: c.title,
       pattern: c.pattern,

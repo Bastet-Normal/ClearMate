@@ -13,6 +13,8 @@ const CHECKLISTS = [
   {
     title: "🔍 诈骗风险自检",
     desc: "检查你是否正在遭遇诈骗",
+    icon: "🔍",
+    gradient: "from-red-500 to-orange-500",
     questions: [
       { id: "q1", text: "对方要求你转账或付款", isDanger: true },
       { id: "q2", text: "对方要求你提供验证码", isDanger: true },
@@ -27,6 +29,8 @@ const CHECKLISTS = [
   {
     title: "💰 消费维权自检",
     desc: "检查你的消费权益是否受损",
+    icon: "💰",
+    gradient: "from-amber-500 to-yellow-500",
     questions: [
       { id: "c1", text: "商品与描述严重不符", isDanger: true },
       { id: "c2", text: "商家拒绝退款/退货", isDanger: true },
@@ -39,6 +43,8 @@ const CHECKLISTS = [
   {
     title: "📄 合同风险自检",
     desc: "检查合同/协议是否有风险条款",
+    icon: "📄",
+    gradient: "from-blue-500 to-cyan-500",
     questions: [
       { id: "d1", text: "有不公平的违约条款", isDanger: true },
       { id: "d2", text: "有自动续费/自动展期条款", isDanger: true },
@@ -73,42 +79,49 @@ export default function SelfCheckPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
-      <Link href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors">← 返回首页</Link>
-      <div className="mt-4 mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">风险自检</h1>
-        <p className="mt-1 text-sm text-gray-500">回答几个问题，快速评估你的风险状况</p>
+    <div className="mx-auto max-w-2xl px-6 py-10">
+      <Link href="/" className="text-sm text-slate-500 hover:text-brand-600 transition-colors">← 返回首页</Link>
+      <div className="mt-6 mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">风险自检</h1>
+        <p className="mt-2 text-sm text-slate-500">回答几个问题，快速评估你的风险状况</p>
       </div>
 
-      {/* 选择自检类型 */}
-      <div className="mb-6 flex gap-2">
+      {/* Checklist Type Tabs */}
+      <div className="mb-6 flex gap-3">
         {CHECKLISTS.map((cl, i) => (
-          <button
-            key={i}
-            onClick={() => { setActiveList(i); resetAll(); }}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              activeList === i ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            {cl.title.split(" ")[0]}
+          <button key={i} onClick={() => { setActiveList(i); resetAll(); }}
+            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+              activeList === i
+                ? "btn-primary shadow-lg shadow-brand-500/25"
+                : "bg-white border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-600 shadow-sm"
+            }`}>
+            {cl.icon}
           </button>
         ))}
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <h2 className="mb-1 text-lg font-semibold text-gray-900">{list.title}</h2>
-        <p className="mb-6 text-sm text-gray-500">{list.desc}</p>
+      {/* Checklist Card */}
+      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${list.gradient} text-xl text-white shadow-lg`}>
+            {list.icon}
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">{list.title}</h2>
+            <p className="text-xs text-slate-500">{list.desc}</p>
+          </div>
+        </div>
 
         <div className="space-y-3">
           {list.questions.map((q) => (
-            <label key={q.id} className="flex items-start gap-3 cursor-pointer">
+            <label key={q.id} className={`flex items-start gap-3 cursor-pointer rounded-xl p-3 transition-all ${answers[q.id] ? "bg-red-50 border border-red-100" : "hover:bg-slate-50"}`}>
               <input
                 type="checkbox"
                 checked={!!answers[q.id]}
                 onChange={() => toggleAnswer(q.id)}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               />
-              <span className={`text-sm ${answers[q.id] ? "text-red-700 font-medium" : "text-gray-700"}`}>
+              <span className={`text-sm leading-relaxed ${answers[q.id] ? "text-red-700 font-semibold" : "text-slate-700"}`}>
                 {q.text}
               </span>
             </label>
@@ -116,55 +129,55 @@ export default function SelfCheckPage() {
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-          <span className="text-sm text-gray-500">已选 {dangerCount} / {totalCount} 项</span>
-          <button
-            onClick={handleSubmit}
-            disabled={dangerCount === 0}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
-          >
+          <span className="text-sm text-slate-500">已选 <span className="font-bold text-slate-800">{dangerCount}</span> / {totalCount} 项</span>
+          <button onClick={handleSubmit} disabled={dangerCount === 0}
+            className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
             查看结果
           </button>
         </div>
       </div>
 
+      {/* Result */}
       {submitted && (
-        <div className={`mt-6 rounded-xl border-2 p-6 ${
-          dangerCount >= 4 ? "border-red-200 bg-red-50" : dangerCount >= 2 ? "border-orange-200 bg-orange-50" : "border-yellow-200 bg-yellow-50"
+        <div className={`mt-6 rounded-2xl border-2 p-6 ${
+          dangerCount >= 4 ? "border-red-200 bg-gradient-to-br from-red-50 to-rose-50" :
+          dangerCount >= 2 ? "border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50" :
+          "border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50"
         }`}>
           {dangerCount >= 4 ? (
             <>
               <h3 className="text-lg font-bold text-red-700">🚨 高度警惕！你可能正在遭遇风险</h3>
-              <p className="mt-2 text-sm text-red-600">
-                你勾选了 {dangerCount} 项风险信号，这表明你正在面临严重风险。请立即停止任何转账/付款操作。
+              <p className="mt-2 text-sm text-red-600 leading-relaxed">
+                你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，这表明你正在面临严重风险。请立即停止任何转账/付款操作。
               </p>
               <div className="mt-4 space-y-2">
-                <p className="text-sm font-medium text-red-700">建议立即：</p>
-                <p className="text-sm text-red-600">1. 拨打 <span className="font-mono font-bold">96110</span>（反诈中心）咨询</p>
-                <p className="text-sm text-red-600">2. 如已转账，立即拨打 <span className="font-mono font-bold">110</span> 报警</p>
-                <p className="text-sm text-red-600">3. 保留所有聊天记录、转账凭证</p>
+                <p className="text-sm font-semibold text-red-700">建议立即：</p>
+                <div className="space-y-1.5">
+                  <p className="text-sm text-red-600">1. 拨打 <span className="inline-flex rounded-lg bg-white px-2 py-0.5 font-mono font-bold text-red-700 border border-red-200">96110</span>（反诈中心）咨询</p>
+                  <p className="text-sm text-red-600">2. 如已转账，立即拨打 <span className="inline-flex rounded-lg bg-white px-2 py-0.5 font-mono font-bold text-red-700 border border-red-200">110</span> 报警</p>
+                  <p className="text-sm text-red-600">3. 保留所有聊天记录、转账凭证</p>
+                </div>
               </div>
             </>
           ) : dangerCount >= 2 ? (
             <>
               <h3 className="text-lg font-bold text-orange-700">⚠️ 存在风险信号，需要警惕</h3>
-              <p className="mt-2 text-sm text-orange-600">
-                你勾选了 {dangerCount} 项风险信号，建议谨慎处理，通过官方渠道核实后再行动。
+              <p className="mt-2 text-sm text-orange-600 leading-relaxed">
+                你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，建议谨慎处理，通过官方渠道核实后再行动。
               </p>
             </>
           ) : (
             <>
-              <h3 className="text-lg font-bold text-yellow-700">⚡ 有少量风险信号</h3>
-              <p className="mt-2 text-sm text-yellow-600">
-                你勾选了 {dangerCount} 项风险信号，保持警惕即可，建议通过官方渠道核实。
+              <h3 className="text-lg font-bold text-amber-700">⚡ 有少量风险信号</h3>
+              <p className="mt-2 text-sm text-amber-600 leading-relaxed">
+                你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，保持警惕即可，建议通过官方渠道核实。
               </p>
             </>
           )}
 
           <div className="mt-6">
-            <Link
-              href="/tasks/new"
-              className="inline-flex rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
-            >
+            <Link href="/tasks/new"
+              className="btn-primary inline-flex rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25">
               创建任务让 AI 详细分析 →
             </Link>
           </div>

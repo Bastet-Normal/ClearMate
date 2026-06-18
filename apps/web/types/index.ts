@@ -49,6 +49,11 @@ export interface Template {
   content: string;
 }
 
+export interface ScamStep {
+  step: string;
+  explanation: string;
+}
+
 export interface SimilarCase {
   title: string;
   pattern: string;
@@ -66,6 +71,7 @@ export interface AnalysisResult {
   questions_to_verify: string[];
   help_channels: HelpChannel[];
   templates: Template[];
+  scam_steps?: ScamStep[];
   similar_cases: SimilarCase[];
   disclaimer: string;
 }
