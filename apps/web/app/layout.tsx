@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { ElderModeProvider } from "@/components/layout/elder-mode-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,9 +18,11 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="min-h-screen flex flex-col antialiased">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <ElderModeProvider>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </ElderModeProvider>
       </body>
     </html>
   );

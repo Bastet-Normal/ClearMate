@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getStats, getUserTasks, isLoggedIn } from "@/lib/local-store";
+import { getStats, getUserTasks, isLoggedIn, logout } from "@/lib/local-store";
 import { useRouter } from "next/navigation";
 import type { Task } from "@/types";
 
@@ -38,6 +38,36 @@ export default function DashboardPage() {
     setTasks(getUserTasks().slice(0, 5)); // 最近 5 个
     setLoading(false);
   }, [router]);
+
+  function handleExportData() {
+    const data: Record<string, string | null> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("cm_")) {
+        data[key] = localStorage.getItem(key);
+      }
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clearmate-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleClearData() {
+    if (!confirm("确定清空所有数据？此操作不可恢复！")) return;
+    if (!confirm("再次确认：所有任务和分析记录将被永久删除。")) return;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("cm_")) keys.push(key);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+    logout();
+    router.push("/");
+  }
 
   if (loading || !stats) {
     return (
@@ -190,6 +220,31 @@ export default function DashboardPage() {
             title="看懂文件"
             desc="提取关键信息、标注风险"
           />
+          <QuickLink
+            href="/self-check"
+            icon="🛡️"
+            title="风险自检"
+            desc="快速评估风险状况"
+          />
+        </div>
+      </div>
+
+      {/* 数据管理 */}
+      <div className="mb-8">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">数据管理</h2>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleExportData}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            📥 导出数据
+          </button>
+          <button
+            onClick={handleClearData}
+            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            🗑️ 清空所有数据
+          </button>
         </div>
       </div>
     </div>

@@ -36,3 +36,19 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+/* 老人模式：大字体、高对比、大按钮 */
+.elder-mode {
+  font-size: 18px;
+  line-height: 1.8;
+}
+.elder-mode button,
+.elder-mode a {
+  min-height: 48px;
+  min-width: 48px;
+}
+.elder-mode input,
+.elder-mode textarea {
+  font-size: 18px;
+  min-height: 48px;
+}

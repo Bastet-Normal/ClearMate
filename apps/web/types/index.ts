@@ -37,6 +37,24 @@ export interface Task {
   updated_at: string;
 }
 
+export interface HelpChannel {
+  name: string;
+  contact: string;
+  desc: string;
+  url?: string;
+}
+
+export interface Template {
+  title: string;
+  content: string;
+}
+
+export interface SimilarCase {
+  title: string;
+  pattern: string;
+  advice: string;
+}
+
 export interface AnalysisResult {
   summary: string;
   risk_level: RiskLevel;
@@ -45,5 +63,8 @@ export interface AnalysisResult {
   assumptions: string[];
   suggested_actions: string[];
   questions_to_verify: string[];
+  help_channels: HelpChannel[];
+  templates: Template[];
+  similar_cases: SimilarCase[];
   disclaimer: string;
 }

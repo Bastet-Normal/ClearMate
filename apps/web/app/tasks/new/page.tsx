@@ -84,7 +84,12 @@ function NewTaskForm() {
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="简短描述你的问题"
+          placeholder={
+            taskType === "scam_check" ? "例如：收到中奖短信要我转账" :
+            taskType === "refund_request" ? "例如：淘宝买了手机卖家不发货" :
+            taskType === "document_review" ? "例如：租房合同看不懂" :
+            "简短描述你的问题"
+          }
           className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
         />
       </div>

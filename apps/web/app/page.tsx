@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { isLoggedIn } from "@/lib/local-store";
+import { isLoggedIn, getStoredUser, setStoredUser } from "@/lib/local-store";
+import type { MemberMode } from "@/types";
 
 const ENTRIES = [
   {
@@ -29,6 +30,14 @@ const ENTRIES = [
     color: "border-blue-100 bg-blue-50/50",
     hoverColor: "hover:border-blue-300 hover:bg-blue-50",
   },
+  {
+    href: "/self-check",
+    icon: "🛡️",
+    title: "风险自检",
+    description: "不确定有没有被骗？回答几个问题，快速评估你的风险状况。",
+    color: "border-purple-100 bg-purple-50/50",
+    hoverColor: "hover:border-purple-300 hover:bg-purple-50",
+  },
 ];
 
 const TRUST = [
@@ -39,46 +48,70 @@ const TRUST = [
 
 export default function HomePage() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [memberMode, setMemberMode] = useState<MemberMode>("normal");
 
   useEffect(() => {
     setLoggedIn(isLoggedIn());
+    const user = getStoredUser();
+    if (user) setMemberMode(user.member_mode as MemberMode);
   }, []);
 
+  function toggleElderMode() {
+    const newMode: MemberMode = memberMode === "elder" ? "normal" : "elder";
+    setMemberMode(newMode);
+    const user = getStoredUser();
+    if (user) {
+      setStoredUser({ ...user, member_mode: newMode });
+    }
+    // 刷新页面以应用样式变化
+    window.location.reload();
+  }
+
+  const isElder = memberMode === "elder";
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12">
+    <div className={`mx-auto max-w-5xl px-4 py-12 ${isElder ? "text-lg" : ""}`}>
       {/* Hero Section */}
       <div className="mb-12 text-center">
-        <h1 className="mb-4 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+        <h1 className={`mb-4 font-bold tracking-tight text-gray-900 ${isElder ? "text-5xl" : "text-4xl sm:text-5xl"}`}>
           遇到麻烦？先问 ClearMate
         </h1>
-        <p className="mx-auto max-w-2xl text-lg text-gray-600 leading-relaxed">
+        <p className={`mx-auto max-w-2xl text-gray-600 leading-relaxed ${isElder ? "text-xl" : "text-lg"}`}>
           上传截图、文件，或者描述你的问题。
           <br />
           AI 帮你分析风险、看懂文件、生成维权材料。
         </p>
-        {loggedIn && (
-          <Link
-            href="/dashboard"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-brand-700 transition-colors"
+        <div className="mt-6 flex items-center justify-center gap-3">
+          {loggedIn && (
+            <Link
+              href="/dashboard"
+              className={`inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 font-medium text-white shadow-sm hover:bg-brand-700 transition-colors ${isElder ? "text-base" : "text-sm"}`}
+            >
+              进入仪表盘 →
+            </Link>
+          )}
+          <button
+            onClick={toggleElderMode}
+            className={`inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-600 hover:bg-gray-50 transition-colors ${isElder ? "text-base" : "text-sm"}`}
           >
-            进入仪表盘 →
-          </Link>
-        )}
+            {isElder ? "🔤 标准模式" : "👴 老人模式"}
+          </button>
+        </div>
       </div>
 
-      {/* Three Core Entry Points */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Entry Points */}
+      <div className={`grid gap-6 sm:grid-cols-2 ${ENTRIES.length > 3 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         {ENTRIES.map((entry) => (
           <Link
             key={entry.href}
             href={entry.href}
             className={`group block rounded-2xl border-2 p-6 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 ${entry.color} ${entry.hoverColor}`}
           >
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-white/80 text-2xl">
+            <div className={`mb-4 flex items-center justify-center rounded-xl bg-white/80 ${isElder ? "h-16 w-16 text-3xl" : "h-14 w-14 text-2xl"}`}>
               {entry.icon}
             </div>
-            <h2 className="mb-2 text-xl font-bold text-gray-900">{entry.title}</h2>
-            <p className="text-sm text-gray-600 leading-relaxed">{entry.description}</p>
+            <h2 className={`mb-2 font-bold text-gray-900 ${isElder ? "text-xl" : "text-xl"}`}>{entry.title}</h2>
+            <p className={`text-gray-600 leading-relaxed ${isElder ? "text-base" : "text-sm"}`}>{entry.description}</p>
           </Link>
         ))}
       </div>
@@ -88,17 +121,16 @@ export default function HomePage() {
         <div className="grid gap-6 sm:grid-cols-3">
           {TRUST.map((t) => (
             <div key={t.title} className="text-center">
-              <div className="mb-2 text-2xl">{t.icon}</div>
-              <h3 className="font-semibold text-gray-900">{t.title}</h3>
-              <p className="mt-1 text-sm text-gray-500">{t.desc}</p>
+              <div className={`mb-2 ${isElder ? "text-3xl" : "text-2xl"}`}>{t.icon}</div>
+              <h3 className={`font-semibold text-gray-900 ${isElder ? "text-lg" : ""}`}>{t.title}</h3>
+              <p className={`mt-1 text-gray-500 ${isElder ? "text-base" : "text-sm"}`}>{t.desc}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Footer note */}
       <div className="mt-12 text-center">
-        <p className="text-xs text-gray-400">
+        <p className={`text-gray-400 ${isElder ? "text-sm" : "text-xs"}`}>
           数据存储在你本地浏览器，不上传服务器 · 适用于 GitHub Pages 部署
         </p>
       </div>

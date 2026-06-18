@@ -3,17 +3,21 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getStoredUser, isLoggedIn, logout as doLogout } from "@/lib/local-store";
+import { getStoredUser, isLoggedIn, logout as doLogout, setStoredUser } from "@/lib/local-store";
 
 export function Header() {
   const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(false);
   const [nickname, setNickname] = useState("");
+  const [isElder, setIsElder] = useState(false);
 
   useEffect(() => {
     setLoggedIn(isLoggedIn());
     const user = getStoredUser();
-    if (user) setNickname(user.nickname);
+    if (user) {
+      setNickname(user.nickname);
+      setIsElder(user.member_mode === "elder");
+    }
   }, []);
 
   function handleLogout() {
@@ -21,6 +25,14 @@ export function Header() {
     setLoggedIn(false);
     setNickname("");
     router.push("/");
+  }
+
+  function toggleElderMode() {
+    const newMode = isElder ? "normal" : "elder";
+    setIsElder(newMode === "elder");
+    const user = getStoredUser();
+    if (user) setStoredUser({ ...user, member_mode: newMode });
+    window.location.reload();
   }
 
   return (
@@ -48,6 +60,13 @@ export function Header() {
                 我的任务
               </Link>
               <span className="text-sm text-gray-500">{nickname}</span>
+              <button
+                onClick={toggleElderMode}
+                className="text-sm font-medium text-gray-400 hover:text-brand-600 transition-colors"
+                title={isElder ? "切换标准模式" : "切换老人模式"}
+              >
+                {isElder ? "🔤" : "👴"}
+              </button>
               <button
                 onClick={handleLogout}
                 className="text-sm font-medium text-gray-400 hover:text-red-500 transition-colors"

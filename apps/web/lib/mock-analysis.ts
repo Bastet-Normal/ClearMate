@@ -1,8 +1,14 @@
-/**客户端 AI 分析引擎 — 移植自后端 mock_provider.py + prompts。
-
-在浏览器端运行，不依赖后端。根据关键词匹配给出风险评分，
-根据任务类型给出结构化分析结果。
-*/
+/**
+ * 客户端 AI 分析引擎 v2
+ *
+ * 重构要点：
+ * 1. 智能风险评分：上下文降权 + 组合识别 + 给出具体原因
+ * 2. 个性化 key_facts：从用户描述抽取金额/时间/对方/平台
+ * 3. 动态 suggested_actions：根据风险等级 + 任务类型 + 缺失信息组合
+ * 4. 求助渠道库：根据任务类型附上具体号码和链接
+ * 5. 维权材料模板：可一键复制
+ * 6. 诈骗案例库：基于关键词匹配，附上相似案例
+ */
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
@@ -14,146 +20,570 @@ export interface AnalysisResult {
   assumptions: string[];
   suggested_actions: string[];
   questions_to_verify: string[];
+  help_channels: Array<{ name: string; contact: string; desc: string; url?: string }>;
+  templates: Array<{ title: string; content: string }>;
+  similar_cases: Array<{ title: string; pattern: string; advice: string }>;
   disclaimer: string;
 }
 
-// 风险关键词及权重
-const RISK_KEYWORDS: Record<string, number> = {
-  验证码: 2,
-  保证金: 2,
-  稳赚: 2,
-  刷单: 3,
-  先转账: 3,
-  解冻费: 3,
-  客服QQ: 2,
-  内部消息: 2,
-  高回报: 2,
-  零风险: 2,
-  限时: 1,
-  马上: 1,
-  中奖: 2,
-  免费领: 2,
-  点链接: 2,
-  身份证: 2,
-  银行卡: 2,
-  转账: 3,
-  代付: 2,
-  花呗套现: 3,
-  网贷: 2,
-};
+// ============ 风险关键词库 ============
 
-function guessRiskLevel(text: string): RiskLevel {
-  const score = Object.entries(RISK_KEYWORDS).reduce(
-    (sum, [kw, weight]) => sum + (text.includes(kw) ? weight : 0),
-    0
-  );
-  if (score >= 5) return "critical";
-  if (score >= 3) return "high";
-  if (score >= 1) return "medium";
-  return "low";
+interface RiskRule {
+  keywords: string[];
+  weight: number;
+  reason: string;
+  // 降权关键词：句子里出现这些词时降权（避免误判）
+  degradeOn?: string[];
 }
 
-function getRiskPoints(text: string): string[] {
-  const points: string[] = [];
-  for (const kw of Object.keys(RISK_KEYWORDS)) {
-    if (text.includes(kw)) {
-      points.push(`命中关键词「${kw}」，常见于诈骗话术`);
+const RISK_RULES: RiskRule[] = [
+  {
+    keywords: ["验证码", "短信验证码", "动态码"],
+    weight: 3,
+    reason: "索要验证码是典型诈骗手法，任何机构都不会要求你提供验证码",
+  },
+  {
+    keywords: ["保证金", "押金", "解冻金", "解冻费"],
+    weight: 3,
+    reason: "要求先交保证金/解冻费才能提现或领奖，是刷单诈骗、解冻诈骗的典型特征",
+  },
+  {
+    keywords: ["刷单", "刷信誉", "做任务返现"],
+    weight: 4,
+    reason: "刷单本身违法，且 99% 是诈骗：先返小利让你投入，再以各种理由不退款",
+  },
+  {
+    keywords: ["先转账", "先付款", "预付款"],
+    weight: 2,
+    reason: "要求先转账/付款再提供服务，资金风险高",
+  },
+  {
+    keywords: ["高回报", "稳赚不赔", "零风险", "保本保息"],
+    weight: 3,
+    reason: "承诺高回报+零风险是投资诈骗的核心话术，正规投资都有风险提示",
+  },
+  {
+    keywords: ["内部消息", "内幕", "老师带单", "导师指导"],
+    weight: 3,
+    reason: "声称有内幕消息/老师带单，是杀猪盘、投资诈骗的典型开场",
+  },
+  {
+    keywords: ["客服QQ", "客服微信", "加我微信", "扫码加群"],
+    weight: 3,
+    reason: "要求脱离平台加微信/QQ/扫码进群，是为了规避平台监管，常见于购物诈骗",
+  },
+  {
+    keywords: ["中奖", "免费领", "0元领", "送手机", "送红包"],
+    weight: 2,
+    reason: "中奖/免费领取是诈骗常见诱饵，后续通常要求付运费、交税或提供个人信息",
+  },
+  {
+    keywords: ["点链接", "点击链接", "短链接", "陌生链接"],
+    weight: 2,
+    reason: "要求点击陌生链接，可能是钓鱼网站，会盗取你的账号密码或植入木马",
+  },
+  {
+    keywords: ["身份证", "银行卡号", "密码", "CVV"],
+    weight: 3,
+    reason: "索要身份证号、银行卡号、密码、CVV 等敏感信息，是盗刷诈骗的前兆",
+  },
+  {
+    keywords: ["代付", "帮付", "代下单", "代充值"],
+    weight: 2,
+    reason: "代付/代下单常见于虚假交易诈骗，付款后对方消失",
+  },
+  {
+    keywords: ["花呗套现", "信用卡套现", "白条套现"],
+    weight: 4,
+    reason: "套现本身违法，且几乎所有'帮你套现'都是诈骗：收手续费后拉黑",
+  },
+  {
+    keywords: ["网贷", "贷款", "下款", "放款"],
+    weight: 2,
+    reason: "网贷诈骗套路：声称无抵押秒下款，要求先交工本费/保证金/解冻费",
+  },
+  {
+    keywords: ["冒充公检法", "安全账户", "涉嫌洗钱"],
+    weight: 4,
+    reason: "冒充公检法是高危诈骗：声称你涉嫌犯罪，要求转账到'安全账户'。公检法不会这样做",
+  },
+  {
+    keywords: ["杀猪盘", "交友投资", "恋爱平台"],
+    weight: 4,
+    reason: "杀猪盘：通过恋爱交友建立信任，再诱导投资/赌博，最后血本无归",
+  },
+  {
+    keywords: ["限时", "马上", "立即", "最后机会"],
+    weight: 1,
+    reason: "制造紧迫感是诈骗常用心理战术，让你来不及思考就行动",
+    degradeOn: ["朋友", "家人", "同事"],
+  },
+  {
+    keywords: ["转账", "汇款"],
+    weight: 2,
+    reason: "涉及转账/汇款需高度警惕：确认对方身份、核实事由、保留凭证",
+    degradeOn: ["家人", "父母", "孩子", "配偶"],
+  },
+];
+
+// ============ 上下文降权词 ============
+// 这些词出现时，说明可能是正常场景，对相关关键词降权
+const SAFE_CONTEXT_WORDS = ["朋友", "家人", "父母", "孩子", "配偶", "同事", "同学", "亲戚"];
+
+// ============ 信息抽取 ============
+
+function extractAmount(text: string): string | null {
+  // 匹配"100元"、"1000块钱"、"5000元"、"1万"、"3.5万"
+  const patterns = [
+    /(\d+(?:\.\d+)?)\s*万/,
+    /(\d+(?:\.\d+)?)\s*[块钱]/,
+    /(\d+(?:\.\d+)?)\s*元/,
+    /(\d+(?:,\d{3})*(?:\.\d+)?)\s*[块钱元]/,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      const num = parseFloat(m[1].replace(/,/g, ""));
+      if (m[0].includes("万")) {
+        return `${num}万`;
+      }
+      return `${num}元`;
     }
   }
-  if (points.length === 0) points.push("未发现明显风险关键词");
-  return points;
+  return null;
 }
 
-// 各任务类型的分析模板
-const ANALYSIS_TEMPLATES: Record<
-  string,
-  {
-    summaryPrefix: string;
-    defaultActions: string[];
-    defaultQuestions: string[];
+function extractPlatform(text: string): string | null {
+  const platforms = [
+    "淘宝", "天猫", "京东", "拼多多", "闲鱼", "抖音", "快手", "小红书",
+    "微信", "QQ", "支付宝", "美团", "饿了么", "携程", "去哪儿",
+    "58同城", "安居客", "链家", "贝壳", "转转",
+  ];
+  for (const p of platforms) {
+    if (text.includes(p)) return p;
   }
-> = {
-  scam_check: {
-    summaryPrefix: "防诈骗分析",
-    defaultActions: [
-      "1. 不要轻易转账或提供验证码",
-      "2. 通过官方渠道核实对方身份",
-      "3. 如已损失，立即报警并保留证据",
-      "4. 将可疑信息转发给家人确认",
-    ],
-    defaultQuestions: ["对方身份是否可核实？", "是否有官方渠道可验证此信息？", "是否要求提前付款或提供敏感信息？"],
+  return null;
+}
+
+function extractTime(text: string): string | null {
+  // 简单匹配"昨天""今天""上周""X月X日"
+  const timeWords = ["昨天", "今天", "前天", "上周", "上个月", "去年", "刚才", "刚刚"];
+  for (const t of timeWords) {
+    if (text.includes(t)) return t;
+  }
+  const dateMatch = text.match(/(\d{1,2})月(\d{1,2})日?/);
+  if (dateMatch) return `${dateMatch[1]}月${dateMatch[2]}日`;
+  return null;
+}
+
+function extractContact(text: string): string | null {
+  // 匹配"对方""卖家""客服""公司""商家"
+  const contacts = [
+    { kw: "卖家", label: "卖家" },
+    { kw: "买家", label: "买家" },
+    { kw: "客服", label: "客服" },
+    { kw: "商家", label: "商家" },
+    { kw: "对方", label: "对方" },
+    { kw: "公司", label: "公司" },
+    { kw: "平台", label: "平台" },
+  ];
+  for (const c of contacts) {
+    if (text.includes(c.kw)) return c.label;
+  }
+  return null;
+}
+
+// ============ 风险评分 v2 ============
+
+interface RiskAssessment {
+  score: number;
+  level: RiskLevel;
+  hitRules: RiskRule[];
+}
+
+function assessRisk(text: string): RiskAssessment {
+  let score = 0;
+  const hitRules: RiskRule[] = [];
+
+  // 检查是否有安全上下文词
+  const hasSafeContext = SAFE_CONTEXT_WORDS.some((w) => text.includes(w));
+
+  for (const rule of RISK_RULES) {
+    const hit = rule.keywords.some((kw) => text.includes(kw));
+    if (!hit) continue;
+
+    // 降权逻辑：如果规则配置了 degradeOn 且文本里有降权词，降权
+    let weight = rule.weight;
+    if (rule.degradeOn && hasSafeContext) {
+      weight = Math.max(1, rule.weight - 1);
+    }
+
+    score += weight;
+    hitRules.push(rule);
+  }
+
+  // 组合识别：同时出现"加微信"+"平台外交易"权重 +2
+  if (text.includes("加微信") || text.includes("加QQ")) {
+    if (text.includes("私下") || text.includes("平台外") || text.includes("直接转账")) {
+      score += 2;
+    }
+  }
+
+  // 金额越大风险越高
+  const amount = extractAmount(text);
+  if (amount) {
+    const num = parseFloat(amount);
+    if (amount.includes("万")) {
+      if (num >= 10) score += 2;
+      else if (num >= 1) score += 1;
+    } else if (num >= 5000) {
+      score += 2;
+    } else if (num >= 1000) {
+      score += 1;
+    }
+  }
+
+  // 评分转等级
+  let level: RiskLevel = "low";
+  if (score >= 7) level = "critical";
+  else if (score >= 4) level = "high";
+  else if (score >= 2) level = "medium";
+
+  return { score, level, hitRules };
+}
+
+// ============ 诈骗案例库 ============
+
+interface ScamCase {
+  title: string;
+  pattern: string;
+  advice: string;
+  matchKeywords: string[];
+}
+
+const SCAM_CASES: ScamCase[] = [
+  {
+    title: "刷单返利诈骗",
+    pattern: "以'点赞赚钱''做任务返佣'为名，先返小额让你信任，再让你大额投入后失联",
+    advice: "所有刷单都是诈骗，不要相信'先垫付后返现'的话术",
+    matchKeywords: ["刷单", "做任务", "返现", "点赞赚钱"],
   },
-  refund_request: {
-    summaryPrefix: "退款/投诉分析",
-    defaultActions: [
-      "1. 收集订单号、支付凭证、商品照片等证据",
-      "2. 先通过平台官方渠道申请退款",
-      "3. 若平台拒绝，向 12315 投诉",
-      "4. 保留所有沟通记录作为证据",
-    ],
-    defaultQuestions: ["退款窗口是否还在有效期内？", "商家是否有 7 天无理由退货承诺？", "是否有支付平台的买家保护？"],
+  {
+    title: "冒充客服退款诈骗",
+    pattern: "冒充淘宝/京东客服，称商品质量问题要给你退款，引导你开通借呗/花呗并转账",
+    advice: "平台退款不会要求你转账或开通贷款，直接挂断并在App内核实",
+    matchKeywords: ["客服", "退款", "商品质量", "开通借呗", "花呗"],
   },
-  complaint: {
-    summaryPrefix: "投诉分析",
-    defaultActions: [
-      "1. 整理事件经过和时间线",
-      "2. 收集相关证据（截图、录音、合同等）",
-      "3. 先向商家正式投诉并保留记录",
-      "4. 若无回应，向监管部门投诉",
-    ],
-    defaultQuestions: ["被投诉方是否可联系？", "是否有明确的损失金额？", "是否在投诉时效内？"],
+  {
+    title: "杀猪盘诈骗",
+    pattern: "通过交友软件建立恋爱关系，再诱导你到虚假投资平台'赚钱'，最后无法提现",
+    advice: "网上认识的'高富帅''白富美'带你投资，99%是杀猪盘",
+    matchKeywords: ["杀猪盘", "交友", "投资", "恋爱", "提现"],
   },
-  subscription_cancel: {
-    summaryPrefix: "订阅取消分析",
-    defaultActions: [
-      "1. 查看订阅服务的取消政策",
-      "2. 通过官方渠道申请取消",
-      "3. 确认取消后是否还会扣费",
-      "4. 保留取消确认截图",
-    ],
-    defaultQuestions: ["自动续费是如何开通的？", "取消后是否有违约金？", "是否有免费试用期可利用？"],
+  {
+    title: "冒充公检法诈骗",
+    pattern: "自称警察/检察院，称你涉嫌洗钱/诈骗，要求你把钱转入'安全账户'配合调查",
+    advice: "公检法不会通过电话办案，更没有所谓的'安全账户'，直接挂断并拨打110核实",
+    matchKeywords: ["公检法", "安全账户", "涉嫌洗钱", "警察", "检察院"],
   },
-  document_review: {
-    summaryPrefix: "文件解读",
-    defaultActions: [
-      "1. 重点关注金额、日期、违约条款",
-      "2. 对模糊条款要求对方书面澄清",
-      "3. 涉及大额合同建议咨询律师",
-      "4. 保留原件和沟通记录",
-    ],
-    defaultQuestions: ["合同对方是否可靠？", "是否有不公平条款需要协商？", "签字前是否充分理解所有条款？"],
+  {
+    title: "贷款解冻诈骗",
+    pattern: "声称你贷款额度被冻结，需要交'解冻费'才能放款，交钱后对方消失",
+    advice: "正规贷款不会要求先交费，所有'解冻费''工本费'都是诈骗",
+    matchKeywords: ["贷款", "解冻", "解冻费", "放款", "额度"],
   },
-  bill_check: {
-    summaryPrefix: "账单检查",
-    defaultActions: [
-      "1. 逐项核对账单明细",
-      "2. 标记不明扣款项",
-      "3. 联系扣款方确认",
-      "4. 不明扣款可向银行申诉",
-    ],
-    defaultQuestions: ["是否有重复扣款？", "是否有自动续费项目？", "账单周期和金额是否正常？"],
+  {
+    title: "中奖诈骗",
+    pattern: "通知你中奖（奖品丰厚），但需要先交'手续费''保证金'或提供银行卡信息才能领奖",
+    advice: "没有参加过的抽奖都是诈骗，正规中奖不会要求先交费",
+    matchKeywords: ["中奖", "免费领", "手续费", "保证金"],
   },
-  shopping_risk: {
-    summaryPrefix: "购物风险分析",
-    defaultActions: [
-      "1. 查看商品评价是否真实",
-      "2. 对比其他平台价格",
-      "3. 确认退货政策",
-      "4. 使用平台担保支付",
-    ],
-    defaultQuestions: ["商品评价是否可信？", "价格是否远低于市场价？", "退货窗口是否充足？"],
+  {
+    title: "虚假购物诈骗",
+    pattern: "在二手平台或社交软件上低价售物，要求私下加微信转账，付款后不发货或拉黑",
+    advice: "不要脱离平台交易，不要私下转账，价格远低于市场价的都是陷阱",
+    matchKeywords: ["加微信", "私下", "低价", "转账", "不发货"],
   },
-  general_life_issue: {
-    summaryPrefix: "生活问题分析",
-    defaultActions: [
-      "1. 明确问题的核心诉求",
-      "2. 评估可行的解决渠道",
-      "3. 收集相关证据和信息",
-      "4. 按优先级逐步处理",
-    ],
-    defaultQuestions: ["最希望达到什么结果？", "有哪些可用资源？", "是否有时间限制？"],
+  {
+    title: "冒充熟人诈骗",
+    pattern: "冒充你的朋友/家人/领导，以'出事了''急需用钱'为由要求紧急转账",
+    advice: "接到熟人借钱电话/信息，务必通过其他渠道核实身份，不要急于转账",
+    matchKeywords: ["借钱", "急需", "转账", "出事"],
   },
-};
+];
+
+function findSimilarCases(text: string): ScamCase[] {
+  return SCAM_CASES.filter((c) =>
+    c.matchKeywords.some((kw) => text.includes(kw))
+  ).slice(0, 3); // 最多返回3个
+}
+
+// ============ 维权材料模板库 ============
+
+interface Template {
+  title: string;
+  content: string;
+}
+
+function getTemplates(taskType: string, title: string, description: string): Template[] {
+  const templates: Template[] = [];
+
+  // 通用模板
+  if (taskType === "refund_request" || taskType === "complaint") {
+    templates.push({
+      title: "投诉信模板",
+      content: `投诉人：[你的姓名]
+联系方式：[手机号]
+被投诉方：[商家名称/平台名称]
+投诉时间：${new Date().toLocaleDateString("zh-CN")}
+
+投诉事由：
+${description || "[详细描述事件经过，包括时间、地点、金额、对方承诺等]"}
+
+投诉请求：
+1. 要求被投诉方退还/赔偿 [金额] 元
+2. 要求被投诉方书面道歉
+3. 保留追究法律责任的权利
+
+证据清单：
+1. 订单截图/支付凭证
+2. 商品照片/聊天记录
+3. 商家承诺截图
+
+本人保证以上所述属实，请贵部门依法处理。
+
+投诉人签名：________
+日期：${new Date().toLocaleDateString("zh-CN")}`,
+    });
+
+    templates.push({
+      title: "退款申请话术",
+      content: `客服你好，我在 [日期] 于 [平台/店铺] 购买了 [商品名称]，订单号 [订单号]。
+
+现申请退款，原因如下：
+${description || "[说明退款原因]"}
+
+根据《消费者权益保护法》第二十五条，我有权自收到商品之日起七日内退货。
+
+请贵方在 3 个工作日内处理，否则我将：
+1. 向 12315 投诉
+2. 向支付平台申请拒付
+3. 通过法律途径维权
+
+期待你的积极处理。`,
+    });
+  }
+
+  if (taskType === "scam_check") {
+    templates.push({
+      title: "报警描述模板",
+      content: `报警时间：${new Date().toLocaleString("zh-CN")}
+报警人：[你的姓名]
+联系电话：[手机号]
+
+被骗经过：
+${description || "[详细描述被骗经过]"}
+
+损失金额：[金额] 元
+对方账号：[对方银行卡/支付宝/微信账号]
+对方联系方式：[对方手机号/QQ/微信]
+
+证据材料：
+1. 聊天记录截图
+2. 转账凭证
+3. 对方账号信息
+
+请公安机关依法立案侦查，挽回损失。`,
+    });
+  }
+
+  if (taskType === "subscription_cancel") {
+    templates.push({
+      title: "取消订阅申请",
+      content: `致 [服务提供商名称]：
+
+我是贵公司 [服务名称] 的用户，账号 [你的账号]。
+
+现正式申请：
+1. 立即取消我的订阅
+2. 停止自动续费
+3. 退还 [未使用期限] 的费用
+
+根据《网络交易监督管理办法》第十八条，经营者采取自动展期方式提供服务的，应当以显著方式提请消费者注意。
+
+若贵公司在 3 个工作日内未处理，我将向 12315 和工信部投诉。
+
+申请人：[你的姓名]
+联系方式：[手机号]
+日期：${new Date().toLocaleDateString("zh-CN")}`,
+    });
+  }
+
+  if (taskType === "document_review" || taskType === "bill_check") {
+    templates.push({
+      title: "质疑函模板",
+      content: `致 [对方公司名称]：
+
+关于 [合同编号/账单编号] 项下的 [合同/账单]，本人有以下疑问：
+
+1. [条款X] 的具体含义？
+2. [费用项] 的计算依据？
+3. [条款Y] 是否属于不公平格式条款？
+
+根据《民法典》第四百九十六条，提供格式条款的一方应当采取合理的方式提示对方注意免除或者减轻其责任等与对方有重大利害关系的条款。
+
+请在 5 个工作日内书面回复，否则本人保留向市场监管部门投诉的权利。
+
+质疑人：[你的姓名]
+联系方式：[手机号]
+日期：${new Date().toLocaleDateString("zh-CN")}`,
+    });
+  }
+
+  // 通用：如果没匹配到，给一个通用模板
+  if (templates.length === 0) {
+    templates.push({
+      title: "情况说明模板",
+      content: `说明人：[你的姓名]
+联系方式：[手机号]
+日期：${new Date().toLocaleDateString("zh-CN")}
+
+情况说明：
+${description || "[详细描述你遇到的问题]"}
+
+我的诉求：
+1. [诉求1]
+2. [诉求2]
+
+希望相关部门/机构能协助处理。`,
+    });
+  }
+
+  return templates;
+}
+
+// ============ 求助渠道 ============
+
+function getHelpChannels(taskType: string, riskLevel: RiskLevel) {
+  const channels: Array<{ name: string; contact: string; desc: string; url?: string }> = [];
+
+  // 高风险场景附上紧急渠道
+  if (riskLevel === "high" || riskLevel === "critical") {
+    channels.push(
+      { name: "反诈中心", contact: "96110", desc: "全国反诈预警专线，接到疑似诈骗电话/短信时拨打" },
+      { name: "报警", contact: "110", desc: "已经被骗、有经济损失时立即报警" },
+      { name: "网络违法犯罪举报", contact: "12377", desc: "举报网络诈骗、网络赌博等违法网站", url: "https://www.12377.cn" }
+    );
+  }
+
+  // 根据任务类型追加专业渠道
+  switch (taskType) {
+    case "refund_request":
+    case "complaint":
+    case "shopping_risk":
+      channels.push(
+        { name: "消费者投诉热线", contact: "12315", desc: "消费纠纷、商品质量问题、虚假宣传投诉", url: "https://www.12315.cn" },
+        { name: "黑猫投诉", contact: "tousu.sina.com.cn", desc: "第三方投诉平台，曝光商家不作为", url: "https://tousu.sina.com.cn" }
+      );
+      break;
+    case "subscription_cancel":
+      channels.push(
+        { name: "工信部申诉", contact: "12300", desc: "运营商乱扣费、增值业务不明扣款投诉", url: "https://yhssglxt.miit.gov.cn" },
+        { name: "消费者投诉热线", contact: "12315", desc: "消费纠纷投诉", url: "https://www.12315.cn" }
+      );
+      break;
+    case "document_review":
+      channels.push(
+        { name: "12348 法律援助", contact: "12348", desc: "免费法律咨询，符合条件的可申请法律援助" },
+        { name: "中国法律服务网", contact: "www.12348.gov.cn", desc: "在线法律咨询、律师查询", url: "https://www.12348.gov.cn" }
+      );
+      break;
+    case "bill_check":
+      channels.push(
+        { name: "工信部申诉", contact: "12300", desc: "运营商乱扣费投诉", url: "https://yhssglxt.miit.gov.cn" },
+        { name: "银行信用卡中心", contact: "卡片背面电话", desc: "信用卡盗刷、不明扣款可申请拒付" }
+      );
+      break;
+    case "general_life_issue":
+      channels.push(
+        { name: "消费者投诉热线", contact: "12315", desc: "消费纠纷投诉", url: "https://www.12315.cn" },
+        { name: "12348 法律援助", contact: "12348", desc: "免费法律咨询" }
+      );
+      break;
+  }
+
+  // 去重
+  const seen = new Set<string>();
+  return channels.filter((c) => {
+    if (seen.has(c.name)) return false;
+    seen.add(c.name);
+    return true;
+  });
+}
+
+// ============ 个性化 key_facts 抽取 ============
+
+function extractKeyFacts(title: string, description: string, taskType: string): string[] {
+  const text = `${title} ${description}`;
+  const facts: string[] = [];
+
+  const amount = extractAmount(text);
+  if (amount) facts.push(`涉及金额：${amount}`);
+
+  const platform = extractPlatform(text);
+  if (platform) facts.push(`涉及平台：${platform}`);
+
+  const time = extractTime(text);
+  if (time) facts.push(`发生时间：${time}`);
+
+  const contact = extractContact(text);
+  if (contact) facts.push(`涉及对象：${contact}`);
+
+  if (description && description.length > 10) {
+    const snippet = description.trim().replace(/\n/g, " ").slice(0, 150);
+    facts.push(`用户描述：${snippet}`);
+  }
+
+  return facts;
+}
+
+// ============ 动态生成待核实问题 ============
+
+function generateQuestions(taskType: string, description: string): string[] {
+  const questions: string[] = [];
+  const text = description || "";
+
+  // 通用问题
+  if (!text.includes("订单号") && (taskType === "refund_request" || taskType === "complaint")) {
+    questions.push("是否保留了订单号和支付凭证？");
+  }
+  if (!text.includes("聊天记录") && (taskType === "scam_check" || taskType === "refund_request")) {
+    questions.push("是否保留了聊天记录截图？");
+  }
+
+  // 根据任务类型生成
+  switch (taskType) {
+    case "scam_check":
+      questions.push("对方身份是否可核实？", "是否要求提前付款或提供敏感信息？");
+      break;
+    case "refund_request":
+      questions.push("退款窗口是否还在有效期内？", "商家是否有7天无理由退货承诺？");
+      break;
+    case "subscription_cancel":
+      questions.push("自动续费是如何开通的？", "取消后是否有违约金？");
+      break;
+    case "document_review":
+      questions.push("合同对方是否可靠？", "是否有不公平条款需要协商？");
+      break;
+    case "bill_check":
+      questions.push("是否有重复扣款？", "是否有自动续费项目？");
+      break;
+  }
+
+  return questions;
+}
+
+// ============ 主分析函数 ============
 
 export function analyzeTask(
   taskType: string,
@@ -161,36 +591,91 @@ export function analyzeTask(
   description: string
 ): AnalysisResult {
   const text = `${title} ${description}`;
-  const riskLevel = guessRiskLevel(text);
-  const riskPoints = getRiskPoints(text);
+  const assessment = assessRisk(text);
+  const riskLevel = assessment.level;
 
-  const template = ANALYSIS_TEMPLATES[taskType] || ANALYSIS_TEMPLATES.general_life_issue;
-
-  const keyFacts: string[] = [];
-  if (text.trim()) {
-    const snippet = text.trim().replace(/\n/g, " ").slice(0, 200);
-    keyFacts.push(`用户描述：${snippet}`);
+  // 风险点：从命中的规则里生成
+  const riskPoints = assessment.hitRules.map((r) => r.reason);
+  if (riskPoints.length === 0) {
+    riskPoints.push("未发现明显风险关键词，但请保持警惕");
   }
-  keyFacts.push("分析基于客户端 AI 引擎，未调用外部服务");
 
-  // 根据风险等级调整建议
-  let actions = [...template.defaultActions];
-  if (riskLevel === "critical" || riskLevel === "high") {
-    actions = ["⚠️ 强烈建议：不要进行任何转账或提供敏感信息！", ...actions];
+  // 关键事实：个性化抽取
+  const keyFacts = extractKeyFacts(title, description, taskType);
+
+  // 建议行动：根据风险等级 + 任务类型动态组合
+  const actions: string[] = [];
+  if (riskLevel === "critical") {
+    actions.push("🚨 极高风险！立即停止任何转账、付款、提供敏感信息的操作");
+    actions.push("📞 拨打 96110（反诈中心）或 110（报警）");
+  } else if (riskLevel === "high") {
+    actions.push("⚠️ 高风险！不要轻易转账或提供验证码");
+    actions.push("🔍 通过官方渠道核实对方身份");
+  } else if (riskLevel === "medium") {
+    actions.push("⚡ 存在一定风险，建议谨慎处理");
+  } else {
+    actions.push("✅ 暂未发现明显风险，但仍建议保持警惕");
   }
+
+  // 根据任务类型追加具体建议
+  const taskSpecificActions: Record<string, string[]> = {
+    scam_check: ["保留所有聊天记录、转账凭证作为证据", "将可疑信息转发给家人确认"],
+    refund_request: ["先通过平台官方渠道申请退款", "若平台拒绝，向 12315 投诉"],
+    complaint: ["整理事件经过和时间线", "收集相关证据（截图、录音、合同等）"],
+    subscription_cancel: ["查看订阅服务的取消政策", "通过官方渠道申请取消"],
+    document_review: ["重点关注金额、日期、违约条款", "对模糊条款要求对方书面澄清"],
+    bill_check: ["逐项核对账单明细", "标记不明扣款项并联系扣款方"],
+    shopping_risk: ["查看商品评价是否真实", "对比其他平台价格"],
+    general_life_issue: ["明确问题的核心诉求", "评估可行的解决渠道"],
+  };
+  actions.push(...(taskSpecificActions[taskType] || []));
+
+  // 待核实问题
+  const questionsToVerify = generateQuestions(taskType, description);
+
+  // 求助渠道
+  const helpChannels = getHelpChannels(taskType, riskLevel);
+
+  // 维权材料模板
+  const templates = getTemplates(taskType, title, description);
+
+  // 相似案例
+  const similarCases = findSimilarCases(text);
+
+  // 摘要
+  const levelText = {
+    low: "低风险",
+    medium: "中风险",
+    high: "高风险",
+    critical: "极高风险",
+  }[riskLevel];
+
+  const summary = `${title} — 分析结果：${levelText}。${
+    assessment.hitRules.length > 0
+      ? `发现 ${assessment.hitRules.length} 个风险信号。`
+      : "未发现明显风险信号。"
+  }${
+    similarCases.length > 0
+      ? ` 匹配到 ${similarCases.length} 个相似案例。`
+      : ""
+  }`;
 
   return {
-    summary: `${template.summaryPrefix}：${title}。整体风险等级为 ${riskLevel === "critical" ? "极高" : riskLevel === "high" ? "高" : riskLevel === "medium" ? "中" : "低"}。${
-      riskPoints.length > 0 && riskPoints[0] !== "未发现明显风险关键词"
-        ? `发现 ${riskPoints.length} 个风险信号。`
-        : "未发现明显风险信号。"
-    }`,
+    summary,
     risk_level: riskLevel,
     risk_points: riskPoints,
     key_facts: keyFacts,
     assumptions: ["假设用户提交的内容真实完整", "假设未涉及未提及的关联交易"],
     suggested_actions: actions,
-    questions_to_verify: template.defaultQuestions,
-    disclaimer: "本分析由 AI 自动生成，仅供参考，不构成法律、金融或医疗建议。涉及重大决策请咨询专业人士。",
+    questions_to_verify: questionsToVerify,
+    help_channels: helpChannels,
+    templates: templates,
+    similar_cases: similarCases.map((c) => ({
+      title: c.title,
+      pattern: c.pattern,
+      advice: c.advice,
+    })),
+    disclaimer:
+      "本分析由 AI 自动生成，仅供参考，不构成法律、金融或医疗建议。涉及重大决策请咨询专业人士。",
   };
 }
