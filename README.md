@@ -164,6 +164,19 @@ npm run lint     # lint
 
 ---
 
+## 在线体验
+
+GitHub Pages 已部署，可直接访问：
+
+🌐 **https://wangjiehu.github.io/ClearMate/**
+
+特点：
+- 纯前端实现，无需后端
+- 数据存储在浏览器本地（localStorage）
+- AI 分析引擎在浏览器内运行（移植自后端 mock provider）
+
+---
+
 ## License
 
 MIT
