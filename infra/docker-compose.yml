@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  # PostgreSQL
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: clearmate
+      POSTGRES_PASSWORD: clearmate
+      POSTGRES_DB: clearmate
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clearmate"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis (可选，MVP 阶段不需要)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redisdata:/data
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://clearmate:clearmate@db:5432/clearmate
+      LLM_PROVIDER: mock
+      CORS_ORIGINS: http://localhost:3000,http://localhost
+    volumes:
+      - ../../apps/api/app:/app/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Next.js Frontend
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes:
+      - ../../apps/web:/app
+      - /app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

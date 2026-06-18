@@ -1,0 +1,346 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import api from "@/lib/api";
+import type { Task, AnalysisResult } from "@/types";
+
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  draft: { label: "草稿", color: "bg-gray-100 text-gray-600" },
+  pending_info: { label: "待补充", color: "bg-yellow-100 text-yellow-700" },
+  analyzing: { label: "分析中", color: "bg-blue-100 text-blue-700" },
+  waiting_confirmation: { label: "待确认", color: "bg-orange-100 text-orange-700" },
+  ready_to_execute: { label: "可执行", color: "bg-green-100 text-green-700" },
+  in_progress: { label: "进行中", color: "bg-blue-100 text-blue-700" },
+  waiting_response: { label: "等回复", color: "bg-yellow-100 text-yellow-700" },
+  completed: { label: "已完成", color: "bg-green-100 text-green-800" },
+  failed: { label: "失败", color: "bg-red-100 text-red-700" },
+  archived: { label: "已归档", color: "bg-gray-100 text-gray-500" },
+};
+
+const RISK_STYLES: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  low: { label: "低风险", bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
+  medium: { label: "中风险", bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200" },
+  high: { label: "高风险", bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200" },
+  critical: { label: "极高风险", bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+};
+
+export default function TaskDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const taskId = params.id as string;
+
+  const [task, setTask] = useState<Task | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetchTask();
+    fetchLatestAnalysis();
+  }, [taskId]);
+
+  async function fetchTask() {
+    try {
+      const res = await api.get(`/api/v1/tasks/${taskId}`);
+      setTask(res.data);
+    } catch (err: any) {
+      if (err.response?.status === 404) setError("任务不存在");
+      else setError("加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchLatestAnalysis() {
+    try {
+      const res = await api.get(`/api/v1/tasks/${taskId}/analyses/latest`);
+      setAnalysis(res.data.result_json);
+    } catch (err: any) {
+      // 404 表示尚无分析，静默处理
+      if (err.response?.status === 404) return;
+    }
+  }
+
+  async function handleAnalyze() {
+    setAnalyzing(true);
+    try {
+      await api.post(`/api/v1/tasks/${taskId}/analyses`);
+      await Promise.all([fetchTask(), fetchLatestAnalysis()]);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "分析失败");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("确定删除这个任务吗？")) return;
+    try {
+      await api.delete(`/api/v1/tasks/${taskId}`);
+      router.push("/tasks");
+    } catch {
+      alert("删除失败");
+    }
+  }
+
+  async function handleStatusUpdate(newStatus: string) {
+    try {
+      const res = await api.patch(`/api/v1/tasks/${taskId}`, { status: newStatus });
+      setTask(res.data);
+    } catch {
+      alert("更新失败");
+    }
+  }
+
+  function copyAnalysis() {
+    if (!analysis) return;
+    const text = formatAnalysisAsText(analysis);
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-12 text-center text-gray-400">加载中...</div>
+    );
+  }
+
+  if (error || !task) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-12 text-center">
+        <p className="text-gray-500">{error || "任务不存在"}</p>
+        <Link href="/tasks" className="mt-4 inline-block text-sm text-brand-600 hover:underline">
+          返回任务列表
+        </Link>
+      </div>
+    );
+  }
+
+  const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.draft;
+  const riskInfo = task.risk_level ? RISK_STYLES[task.risk_level] : null;
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      {/* Breadcrumb */}
+      <Link href="/tasks" className="text-sm text-gray-500 hover:text-brand-600 transition-colors">
+        ← 返回任务列表
+      </Link>
+
+      {/* Task header */}
+      <div className="mt-4 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusInfo.color}`}>
+            {statusInfo.label}
+          </span>
+          {riskInfo && (
+            <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${riskInfo.bg} ${riskInfo.text} ${riskInfo.border}`}>
+              {riskInfo.label}
+            </span>
+          )}
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900">{task.title}</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          类型: {task.task_type} · 创建于 {new Date(task.created_at).toLocaleString("zh-CN")}
+        </p>
+      </div>
+
+      {/* Description */}
+      {task.description && (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <h3 className="mb-2 text-sm font-medium text-gray-700">描述</h3>
+          <p className="text-sm text-gray-600 whitespace-pre-wrap">{task.description}</p>
+        </div>
+      )}
+
+      {/* Risk warning for high-risk tasks */}
+      {riskInfo && (task.risk_level === "high" || task.risk_level === "critical") && (
+        <div className={`mb-6 rounded-xl border-2 p-4 ${riskInfo.bg} ${riskInfo.border}`}>
+          <p className={`text-sm font-semibold ${riskInfo.text}`}>
+            ⚠️ 此任务风险等级较高，请谨慎处理。AI 分析仅供参考，重大决策请咨询专业人士。
+          </p>
+        </div>
+      )}
+
+      {/* AI Analysis result */}
+      {analysis ? (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-700">AI 分析结果</h3>
+            <button
+              onClick={copyAnalysis}
+              className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              {copied ? "✓ 已复制" : "复制结果"}
+            </button>
+          </div>
+
+          {/* Summary with risk badge */}
+          <div className="mb-4 flex items-start gap-3">
+            <span className={`mt-0.5 inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+              analysis.risk_level === "critical" ? "bg-red-100 text-red-700" :
+              analysis.risk_level === "high" ? "bg-orange-100 text-orange-700" :
+              analysis.risk_level === "medium" ? "bg-yellow-100 text-yellow-700" :
+              "bg-green-100 text-green-700"
+            }`}>
+              {RISK_STYLES[analysis.risk_level]?.label || analysis.risk_level}
+            </span>
+            <p className="flex-1 text-sm font-medium text-gray-900">{analysis.summary}</p>
+          </div>
+
+          {/* Risk points */}
+          {analysis.risk_points?.length > 0 && (
+            <Section title="⚠️ 风险点" items={analysis.risk_points} color="text-orange-700" />
+          )}
+
+          {/* Key facts */}
+          {analysis.key_facts?.length > 0 && (
+            <Section title="📋 关键事实" items={analysis.key_facts} color="text-blue-700" />
+          )}
+
+          {/* Suggested actions */}
+          {analysis.suggested_actions?.length > 0 && (
+            <Section title="✅ 建议行动" items={analysis.suggested_actions} color="text-green-700" />
+          )}
+
+          {/* Questions to verify */}
+          {analysis.questions_to_verify?.length > 0 && (
+            <Section title="❓ 待核实事项" items={analysis.questions_to_verify} color="text-yellow-700" />
+          )}
+
+          {/* Disclaimer */}
+          {analysis.disclaimer && (
+            <div className="mt-4 rounded-lg bg-gray-50 p-3">
+              <p className="text-xs text-gray-500">{analysis.disclaimer}</p>
+            </div>
+          )}
+
+          {/* Re-analyze button */}
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+            >
+              {analyzing ? "分析中..." : "重新分析"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-6 rounded-xl border-2 border-dashed border-gray-200 bg-white p-6 text-center">
+          <p className="mb-4 text-sm text-gray-500">还没有 AI 分析结果</p>
+          <button
+            onClick={handleAnalyze}
+            disabled={analyzing}
+            className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+          >
+            {analyzing ? "分析中..." : "🤖 让 AI 分析"}
+          </button>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+        <h3 className="mb-3 text-sm font-medium text-gray-700">状态流转</h3>
+        <div className="flex flex-wrap gap-2">
+          {task.status === "draft" && (
+            <button
+              onClick={() => handleStatusUpdate("analyzing")}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+            >
+              开始分析
+            </button>
+          )}
+          {task.status === "analyzing" && (
+            <button
+              onClick={() => handleStatusUpdate("waiting_confirmation")}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              分析完成，待确认
+            </button>
+          )}
+          {task.status === "waiting_confirmation" && (
+            <button
+              onClick={() => handleStatusUpdate("ready_to_execute")}
+              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+            >
+              确认，准备执行
+            </button>
+          )}
+          {task.status === "ready_to_execute" && (
+            <button
+              onClick={() => handleStatusUpdate("in_progress")}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+            >
+              开始执行
+            </button>
+          )}
+          {task.status === "in_progress" && (
+            <button
+              onClick={() => handleStatusUpdate("completed")}
+              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+            >
+              标记完成
+            </button>
+          )}
+          <button
+            onClick={handleDelete}
+            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            删除任务
+          </button>
+        </div>
+      </div>
+
+      {/* Disclaimer */}
+      <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+        <p className="text-xs text-gray-400">
+          ⚖️ 本工具 AI 分析结果仅供参考，不构成法律、金融或医疗建议。涉及重大决策请咨询专业人士。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, items, color }: { title: string; items: string[]; color: string }) {
+  return (
+    <div className="mb-3">
+      <h4 className={`mb-1.5 text-xs font-semibold ${color}`}>{title}</h4>
+      <ul className="space-y-1">
+        {items.map((item, i) => (
+          <li key={i} className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function formatAnalysisAsText(a: AnalysisResult): string {
+  const lines: string[] = [];
+  lines.push(`【风险等级】${a.risk_level}`);
+  lines.push(`【总结】${a.summary}`);
+  if (a.risk_points?.length) {
+    lines.push("【风险点】");
+    a.risk_points.forEach((p) => lines.push(`  - ${p}`));
+  }
+  if (a.key_facts?.length) {
+    lines.push("【关键事实】");
+    a.key_facts.forEach((p) => lines.push(`  - ${p}`));
+  }
+  if (a.suggested_actions?.length) {
+    lines.push("【建议行动】");
+    a.suggested_actions.forEach((p) => lines.push(`  - ${p}`));
+  }
+  if (a.questions_to_verify?.length) {
+    lines.push("【待核实事项】");
+    a.questions_to_verify.forEach((p) => lines.push(`  - ${p}`));
+  }
+  if (a.disclaimer) lines.push(`【免责声明】${a.disclaimer}`);
+  return lines.join("\n");
+}
