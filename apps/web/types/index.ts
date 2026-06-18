@@ -69,6 +69,8 @@ export interface AnalysisResult {
   assumptions: string[];
   suggested_actions: string[];
   questions_to_verify: string[];
+  evidence_checklist: string[];
+  counter_scripts: string[];
   help_channels: HelpChannel[];
   templates: Template[];
   scam_steps?: ScamStep[];

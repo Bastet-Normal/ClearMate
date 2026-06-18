@@ -20,6 +20,8 @@ export interface AnalysisResult {
   assumptions: string[];
   suggested_actions: string[];
   questions_to_verify: string[];
+  evidence_checklist: string[];
+  counter_scripts: string[];
   help_channels: Array<{ name: string; contact: string; desc: string; url?: string }>;
   templates: Array<{ title: string; content: string }>;
   scam_steps?: Array<{ step: string; explanation: string }>;
@@ -644,6 +646,86 @@ function generateQuestions(taskType: string, description: string): string[] {
   return questions;
 }
 
+// ============ 取证清单 ============
+
+function generateEvidenceChecklist(taskType: string, description: string): string[] {
+  const checklist: string[] = [];
+  const text = description || "";
+
+  // 通用
+  checklist.push("截图保存所有相关页面和聊天记录");
+  checklist.push("保留所有转账/支付凭证截图");
+
+  switch (taskType) {
+    case "scam_check":
+      checklist.push("保存可疑短信/邮件原文截图（含发件人号码/地址）");
+      checklist.push("截图对方提供的链接、二维码、APP下载页面");
+      checklist.push("录音电话沟通内容（如已通话）");
+      if (text.includes("转账") || text.includes("付款")) checklist.push("保留转账记录和对方收款账户信息");
+      break;
+    case "refund_request":
+    case "complaint":
+      checklist.push("截图订单详情页（含订单号、商品信息、金额）");
+      checklist.push("保留商品实物照片（如收到货）");
+      checklist.push("保存与商家的聊天记录（含承诺内容）");
+      if (text.includes("假") || text.includes("不符")) checklist.push("对比截图：商品详情页 vs 收到实物");
+      break;
+    case "document_review":
+      checklist.push("保留合同/文件原件（拍照或扫描）");
+      checklist.push("标注不理解或认为不公平的条款位置");
+      checklist.push("保存签署前的版本（如有修改）");
+      break;
+    case "subscription_cancel":
+      checklist.push("截图订阅开通页面和扣费记录");
+      checklist.push("保留取消操作的截图和确认信息");
+      break;
+    case "bill_check":
+      checklist.push("逐月截图账单明细");
+      checklist.push("标记不明扣款项并截图");
+      break;
+  }
+  return checklist;
+}
+
+// ============ 反套路话术 ============
+
+function generateCounterScripts(taskType: string, riskLevel: RiskLevel, description: string): string[] {
+  const scripts: string[] = [];
+  const text = description || "";
+
+  switch (taskType) {
+    case "scam_check":
+      if (riskLevel === "high" || riskLevel === "critical") {
+        scripts.push("我不会转账，请你通过官方渠道证明身份");
+        scripts.push("我需要和家人确认后再决定，请不要催我");
+        scripts.push("正规机构不会要求先交费，我不会付款");
+      }
+      scripts.push("请提供你的工号和公司名称，我会去官方渠道核实");
+      scripts.push("我不会提供验证码、银行卡号或密码");
+      break;
+    case "refund_request":
+    case "complaint":
+      scripts.push("根据《消费者权益保护法》第25条，我有权7天无理由退货");
+      scripts.push("如果3个工作日内不处理，我将向12315投诉");
+      scripts.push("商品与描述严重不符，这属于虚假宣传，我要求全额退款");
+      if (text.includes("不退") || text.includes("拒绝")) scripts.push("你的拒绝理由不成立，我已保留完整证据，包括聊天记录和商品照片");
+      break;
+    case "document_review":
+      scripts.push("这个条款我无法理解，请用通俗语言解释");
+      scripts.push("根据《民法典》第496条，格式条款应显著提示，否则可主张不成为合同内容");
+      scripts.push("我要求删除/修改第X条，否则不予签署");
+      break;
+    case "subscription_cancel":
+      scripts.push("根据《网络交易监督管理办法》第18条，自动续费应以显著方式提醒，我要求立即取消");
+      scripts.push("我不知情的情况下被续费，要求退还扣款");
+      break;
+    default:
+      scripts.push("我需要时间考虑，请不要催促");
+      scripts.push("我已保留相关证据，如不妥善处理我将通过官方渠道维权");
+  }
+  return scripts;
+}
+
 // ============ 主分析函数 ============
 
 export function analyzeTask(
@@ -683,7 +765,13 @@ export function analyzeTask(
     scam_check: ["保留所有聊天记录、转账凭证作为证据", "将可疑信息转发给家人确认"],
     refund_request: ["先通过平台官方渠道申请退款", "若平台拒绝，向 12315 投诉"],
     complaint: ["整理事件经过和时间线", "收集相关证据（截图、录音、合同等）"],
-    subscription_cancel: ["查看订阅服务的取消政策", "通过官方渠道申请取消"],
+    subscription_cancel: [
+      "查看订阅服务的取消政策",
+      "通过官方渠道申请取消",
+      "检查是否还有其他关联的自动续费",
+      "确认取消后是否还有违约金",
+      "截图取消操作和确认信息",
+    ],
     document_review: ["重点关注金额、日期、违约条款", "对模糊条款要求对方书面澄清"],
     bill_check: ["逐项核对账单明细", "标记不明扣款项并联系扣款方"],
     shopping_risk: ["查看商品评价是否真实", "对比其他平台价格"],
@@ -693,6 +781,12 @@ export function analyzeTask(
 
   // 待核实问题
   const questionsToVerify = generateQuestions(taskType, description);
+
+  // 取证清单
+  const evidenceChecklist = generateEvidenceChecklist(taskType, description);
+
+  // 反套路话术
+  const counterScripts = generateCounterScripts(taskType, riskLevel, description);
 
   // 求助渠道
   const helpChannels = getHelpChannels(taskType, riskLevel);
@@ -729,6 +823,8 @@ export function analyzeTask(
     assumptions: ["假设用户提交的内容真实完整", "假设未涉及未提及的关联交易"],
     suggested_actions: actions,
     questions_to_verify: questionsToVerify,
+    evidence_checklist: evidenceChecklist,
+    counter_scripts: counterScripts,
     help_channels: helpChannels,
     templates: templates,
     scam_steps: similarCases.length > 0 && SCAM_STEPS[similarCases[0].title]

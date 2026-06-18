@@ -10,7 +10,8 @@ const ENTRIES = [
   { href: "/tasks/new?scam_check", icon: "🔍", title: "这是不是坑？", desc: "判断短信、广告、兼职是否诈骗", gradient: "from-red-500 to-orange-500", shadow: "shadow-red-500/20" },
   { href: "/tasks/new?refund_request", icon: "💰", title: "退款 / 投诉 / 取消", desc: "生成投诉信、退款申请、客服话术", gradient: "from-amber-500 to-yellow-500", shadow: "shadow-amber-500/20" },
   { href: "/tasks/new?document_review", icon: "📄", title: "看懂这份文件", desc: "提取关键信息、标注风险条款", gradient: "from-blue-500 to-cyan-500", shadow: "shadow-blue-500/20" },
-  { href: "/self-check", icon: "🛡️", title: "风险自检", desc: "回答几个问题，快速评估风险", gradient: "from-violet-500 to-purple-500", shadow: "shadow-violet-500/20" },
+  { href: "/avoid-pit", icon: "🛡️", title: "消费避坑", desc: "买前查一查，识别品类风险", gradient: "from-violet-500 to-purple-500", shadow: "shadow-violet-500/20" },
+  { href: "/self-check", icon: "✅", title: "风险自检", desc: "回答几个问题，快速评估风险", gradient: "from-teal-500 to-emerald-500", shadow: "shadow-teal-500/20" },
 ];
 
 export default function HomePage() {

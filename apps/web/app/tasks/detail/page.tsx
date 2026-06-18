@@ -212,6 +212,15 @@ function TaskDetailContent() {
       {riskInfo && (task.risk_level === "high" || task.risk_level === "critical") && (
         <div className={`mb-6 rounded-2xl border-2 p-5 risk-high-alert ${riskInfo.bg} ${riskInfo.border}`}>
           <p className={`text-sm font-semibold ${riskInfo.text}`}>⚠️ 此任务风险等级较高，请谨慎处理。AI 分析仅供参考，重大决策请咨询专业人士。</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={() => {
+              const text = `【ClearMate 风险提醒】\n任务：${task.title}\n风险等级：${task.risk_level === "critical" ? "极高" : "高"}风险\n${analysis?.summary || "请帮我看看这个是不是坑"}`;
+              if (navigator.share) { navigator.share({ title: "ClearMate 风险提醒", text }); }
+              else { navigator.clipboard.writeText(text); showToast("已复制，发给家人确认"); }
+            }} className="rounded-xl bg-white/80 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-white transition-all shadow-sm border border-red-200">
+              👨‍👩‍👧 发给家人确认
+            </button>
+          </div>
         </div>
       )}
 
@@ -247,6 +256,10 @@ function TaskDetailContent() {
             {analysis.suggested_actions?.length > 0 && <Section title="✅ 建议行动" items={analysis.suggested_actions} color="text-green-600" borderColor="border-green-200" />}
             {/* Questions */}
             {analysis.questions_to_verify?.length > 0 && <Section title="❓ 待核实事项" items={analysis.questions_to_verify} color="text-amber-600" borderColor="border-amber-200" />}
+            {/* Evidence Checklist */}
+            {analysis.evidence_checklist?.length > 0 && <Section title="📸 取证清单" items={analysis.evidence_checklist} color="text-blue-600" borderColor="border-blue-200" />}
+            {/* Counter Scripts */}
+            {analysis.counter_scripts?.length > 0 && <Section title="💬 反套路话术" items={analysis.counter_scripts} color="text-green-600" borderColor="border-green-200" />}
             {/* Assumptions */}
             {analysis.assumptions?.length > 0 && <Section title="💡 分析假设" items={analysis.assumptions} color="text-slate-500" borderColor="border-slate-200" />}
 

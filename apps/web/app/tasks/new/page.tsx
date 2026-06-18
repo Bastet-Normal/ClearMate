@@ -9,6 +9,7 @@ import { analyzeTask } from "@/lib/mock-analysis";
 const TASK_TYPES = [
   { value: "scam_check", label: "🔍 这是不是坑？", desc: "判断短信、广告、兼职是否诈骗", gradient: "from-red-500 to-orange-500" },
   { value: "refund_request", label: "💰 退款/投诉/取消", desc: "生成投诉信、退款申请、客服话术", gradient: "from-amber-500 to-yellow-500" },
+  { value: "subscription_cancel", label: "🔓 订阅陷阱", desc: "识别自动续费陷阱，给出取消路径", gradient: "from-pink-500 to-rose-500" },
   { value: "document_review", label: "📄 看懂文件", desc: "上传文件或粘贴文本，AI 提取关键信息", gradient: "from-blue-500 to-cyan-500" },
   { value: "general_life_issue", label: "📋 其他生活问题", desc: "描述你的问题，AI 帮你分析", gradient: "from-slate-500 to-slate-600" },
 ];
