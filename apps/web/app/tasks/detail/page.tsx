@@ -15,6 +15,8 @@ import { getStoredUser } from "@/lib/local-store";
 import { useToast } from "@/components/ui/toast";
 import type { Task, AnalysisResult } from "@/types";
 
+const TASK_TYPE_LABELS: Record<string, string> = { scam_check: "🔍 这是不是坑？", refund_request: "💰 退款/投诉", complaint: "💰 投诉", subscription_cancel: "💰 取消订阅", document_review: "📄 看懂文件", bill_check: "📄 账单检查", shopping_risk: "🔍 购物风险", general_life_issue: "📋 其他" };
+
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: "待处理", color: "bg-slate-100 text-slate-600" },
   analyzing: { label: "分析中", color: "bg-brand-50 text-brand-600" },
@@ -193,7 +195,7 @@ function TaskDetailContent() {
                 ✏️ 编辑
               </button>
             </div>
-            <p className="mt-2 text-sm text-slate-500">类型: {task.task_type} · 创建于 {new Date(task.created_at).toLocaleString("zh-CN")}</p>
+            <p className="mt-2 text-sm text-slate-500">{TASK_TYPE_LABELS[task.task_type] || task.task_type} · 创建于 {new Date(task.created_at).toLocaleString("zh-CN")}{task.updated_at !== task.created_at && ` · 更新于 ${new Date(task.updated_at).toLocaleString("zh-CN")}`}</p>
           </>
         )}
       </div>
