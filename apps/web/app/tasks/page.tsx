@@ -17,12 +17,23 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterRisk, setFilterRisk] = useState("");
+  const [sortBy, setSortBy] = useState<"time" | "risk">("time");
 
   useEffect(() => { setTasks(getUserTasks()); setLoading(false); }, []);
 
   function handleDelete(taskId: string) { if (!confirm("确定删除？")) return; deleteTask(taskId); setTasks(getUserTasks()); }
 
   const filteredTasks = tasks.filter((t) => { if (search && !t.title.includes(search) && !t.description.includes(search)) return false; if (filterType && t.task_type !== filterType) return false; if (filterRisk && t.risk_level !== filterRisk) return false; return true; });
+
+  const RISK_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (sortBy === "risk") {
+      const aRisk = RISK_ORDER[a.risk_level ?? "low"] ?? 4;
+      const bRisk = RISK_ORDER[b.risk_level ?? "low"] ?? 4;
+      if (aRisk !== bRisk) return aRisk - bRisk;
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   if (loading) return <div className="mx-auto max-w-6xl px-6 py-12 text-center text-slate-400">加载中...</div>;
 
@@ -42,13 +53,17 @@ export default function TasksPage() {
           <select value={filterRisk} onChange={(e) => setFilterRisk(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-brand-400 focus:outline-none shadow-sm">
             <option value="">全部风险</option><option value="critical">极高</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option>
           </select>
+          <button onClick={() => setSortBy(sortBy === "time" ? "risk" : "time")}
+            className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${sortBy === "risk" ? "btn-primary shadow-lg shadow-brand-500/25" : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 shadow-sm"}`}>
+            {sortBy === "risk" ? "⚠️ 按风险排序" : "🕐 按时间排序"}
+          </button>
         </div>
       )}
 
       {tasks.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center"><div className="mb-4 text-5xl">📋</div><h3 className="mb-2 text-lg font-bold text-slate-800">还没有任务</h3><p className="mb-6 text-sm text-slate-500">选择一个入口开始</p><Link href="/" className="btn-primary inline-flex rounded-xl px-6 py-3 text-sm font-semibold shadow-lg shadow-brand-500/25">回到首页</Link></div>
       ) : (
-        <div className="space-y-3">{filteredTasks.map((task) => { const s = STATUS_LABELS[task.status] || STATUS_LABELS.draft; return (
+        <div className="space-y-3">{sortedTasks.map((task) => { const s = STATUS_LABELS[task.status] || STATUS_LABELS.draft; return (
           <div key={task.id} className="card-hover group rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <Link href={`/tasks/detail?id=${task.id}`} className="min-w-0 flex-1">

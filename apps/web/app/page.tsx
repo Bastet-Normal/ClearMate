@@ -116,26 +116,54 @@ export default function HomePage() {
             <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-3 flex items-center gap-3">
                 <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
-                  quickResult.risk_level === "critical" ? "bg-risk-critical/10 text-red-600" :
-                  quickResult.risk_level === "high" ? "bg-risk-high/10 text-orange-600" :
-                  quickResult.risk_level === "medium" ? "bg-risk-medium/10 text-amber-600" : "bg-risk-low/10 text-green-600"
+                  quickResult.risk_level === "critical" ? "bg-red-100 text-red-600" :
+                  quickResult.risk_level === "high" ? "bg-orange-100 text-orange-600" :
+                  quickResult.risk_level === "medium" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-600"
                 }`}>
                   {{ low: "低风险", medium: "中风险", high: "高风险", critical: "极高风险" }[quickResult.risk_level]}
                 </span>
                 <p className="text-sm font-semibold text-slate-800">{quickResult.summary}</p>
               </div>
               {quickResult.risk_points.length > 0 && quickResult.risk_points[0] !== "未发现明显风险关键词，但请保持警惕" && (
-                <div className="mb-2"><p className="text-xs font-semibold text-orange-600 mb-1">风险点</p>
+                <div className="mb-3"><p className="text-xs font-semibold text-orange-600 mb-1">风险点</p>
                   <ul className="space-y-0.5">{quickResult.risk_points.slice(0, 3).map((p, i) => <li key={i} className="text-xs text-slate-600 pl-3 border-l-2 border-orange-200">{p}</li>)}</ul>
                 </div>
               )}
               {quickResult.suggested_actions.length > 0 && (
-                <div className="mb-2"><p className="text-xs font-semibold text-green-600 mb-1">建议</p>
+                <div className="mb-3"><p className="text-xs font-semibold text-green-600 mb-1">建议</p>
                   <ul className="space-y-0.5">{quickResult.suggested_actions.slice(0, 3).map((a, i) => <li key={i} className="text-xs text-slate-600 pl-3 border-l-2 border-green-200">{a}</li>)}</ul>
                 </div>
               )}
+              {quickResult.help_channels.length > 0 && (
+                <div className="mb-3"><p className="text-xs font-semibold text-brand-600 mb-1">📞 求助渠道</p>
+                  <div className="flex flex-wrap gap-2">{quickResult.help_channels.map((ch, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-xs border border-brand-100">
+                      <span className="font-semibold text-brand-700">{ch.name}</span>
+                      {/^\d+$/.test(ch.contact) ? (
+                        <a href={`tel:${ch.contact}`} className="font-mono font-bold text-brand-600 hover:underline">{ch.contact}</a>
+                      ) : (
+                        <span className="font-mono font-bold text-brand-600">{ch.contact}</span>
+                      )}
+                    </span>
+                  ))}</div>
+                </div>
+              )}
+              {quickResult.templates.length > 0 && (
+                <div className="mb-3"><p className="text-xs font-semibold text-slate-600 mb-1">📝 可用模板</p>
+                  <div className="flex flex-wrap gap-2">{quickResult.templates.map((t, i) => (
+                    <span key={i} className="rounded-lg bg-slate-50 px-2.5 py-1 text-xs text-slate-600 border border-slate-100">{t.title}</span>
+                  ))}</div>
+                </div>
+              )}
+              {quickResult.similar_cases.length > 0 && (
+                <div className="mb-3"><p className="text-xs font-semibold text-violet-600 mb-1">📚 相似案例</p>
+                  <ul className="space-y-1">{quickResult.similar_cases.map((c, i) => (
+                    <li key={i} className="text-xs text-violet-600 pl-3 border-l-2 border-violet-200"><span className="font-semibold">{c.title}</span>: {c.advice}</li>
+                  ))}</ul>
+                </div>
+              )}
               <p className="text-xs text-slate-400 mt-3">{quickResult.disclaimer}</p>
-              {!loggedIn && <Link href="/register" className="mt-3 inline-block btn-primary rounded-xl px-5 py-2 text-xs font-semibold shadow-lg shadow-brand-500/25">注册保存分析记录 →</Link>}
+              {!loggedIn && <Link href="/register" className="mt-3 inline-block btn-primary rounded-xl px-5 py-2 text-xs font-semibold shadow-lg shadow-brand-500/25">注册保存完整分析 →</Link>}
             </div>
           )}
         </div>

@@ -43,6 +43,7 @@ function TaskDetailContent() {
 
   const [task, setTask] = useState<Task | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysisTime, setAnalysisTime] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
@@ -60,7 +61,7 @@ function TaskDetailContent() {
     if (!t) { setError("任务不存在"); setLoading(false); return; }
     setTask(t);
     const latest = getLatestAnalysis(taskId);
-    if (latest) setAnalysis(latest.result_json);
+    if (latest) { setAnalysis(latest.result_json); setAnalysisTime(latest.created_at); }
     setLoading(false);
   }, [taskId]);
 
@@ -71,6 +72,7 @@ function TaskDetailContent() {
       const result = analyzeTask(task.task_type, task.title, task.description);
       saveAnalysis(task.id, result);
       setAnalysis(result);
+      setAnalysisTime(new Date().toISOString());
       const updated = getTask(taskId);
       if (updated) setTask(updated);
     } catch (err: any) { alert(err.message || "分析失败"); }
@@ -114,9 +116,17 @@ function TaskDetailContent() {
 
   function saveEdit() {
     if (!task) return;
+    const titleChanged = editTitle !== task.title;
+    const descChanged = editDesc !== task.description;
     const updated = updateTask(taskId, { title: editTitle, description: editDesc });
     if (updated) setTask(updated);
     setEditing(false);
+    // 描述或标题变更时提示重新分析
+    if ((titleChanged || descChanged) && analysis) {
+      if (confirm("内容已变更，是否让 AI 重新分析？")) {
+        handleAnalyze();
+      }
+    }
   }
 
   function cancelEdit() {
@@ -211,6 +221,7 @@ function TaskDetailContent() {
             <div className="mb-5 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-800">🤖 AI 分析结果</h3>
               <div className="flex items-center gap-3">
+                {analysisTime && <span className="text-xs text-slate-400">{new Date(analysisTime).toLocaleString("zh-CN")}</span>}
                 <button onClick={() => copyText(formatAnalysisAsText(analysis), "all")}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
                   {copied === "all" ? "✓ 已复制" : "📋 复制全部"}
@@ -247,6 +258,14 @@ function TaskDetailContent() {
                       <p className="text-sm font-semibold text-violet-700">{c.title}</p>
                       <p className="mt-1 text-xs text-violet-600 leading-relaxed">{c.pattern}</p>
                       <p className="mt-1 text-xs text-violet-500 font-medium">💡 {c.advice}</p>
+                      {c.steps && c.steps.length > 0 && (
+                        <div className="mt-2 pl-3 border-l-2 border-violet-200">
+                          <p className="text-xs font-semibold text-violet-600 mb-1">套路步骤：</p>
+                          {c.steps.map((s, si) => (
+                            <p key={si} className="text-xs text-violet-500 leading-relaxed">{s}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -410,9 +429,12 @@ function formatAnalysisAsText(a: AnalysisResult): string {
   lines.push(`【总结】${a.summary}`);
   if (a.risk_points?.length) { lines.push("【风险点】"); a.risk_points.forEach((p) => lines.push(`  - ${p}`)); }
   if (a.key_facts?.length) { lines.push("【关键事实】"); a.key_facts.forEach((p) => lines.push(`  - ${p}`)); }
+  if (a.assumptions?.length) { lines.push("【分析假设】"); a.assumptions.forEach((p) => lines.push(`  - ${p}`)); }
   if (a.suggested_actions?.length) { lines.push("【建议行动】"); a.suggested_actions.forEach((p) => lines.push(`  - ${p}`)); }
   if (a.questions_to_verify?.length) { lines.push("【待核实事项】"); a.questions_to_verify.forEach((p) => lines.push(`  - ${p}`)); }
+  if (a.similar_cases?.length) { lines.push("【相似案例】"); a.similar_cases.forEach((c) => { lines.push(`  - ${c.title}: ${c.pattern}`); lines.push(`    建议: ${c.advice}`); }); }
   if (a.help_channels?.length) { lines.push("【求助渠道】"); a.help_channels.forEach((c) => lines.push(`  - ${c.name}：${c.contact}（${c.desc}）`)); }
+  if (a.templates?.length) { lines.push("【维权模板】"); a.templates.forEach((t) => { lines.push(`  --- ${t.title} ---`); lines.push(t.content); }); }
   if (a.disclaimer) lines.push(`【免责声明】${a.disclaimer}`);
   return lines.join("\n");
 }
