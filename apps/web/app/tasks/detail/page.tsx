@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import api from "@/lib/api";
+import {
+  getTask,
+  updateTask,
+  deleteTask,
+  getLatestAnalysis,
+  saveAnalysis,
+} from "@/lib/local-store";
+import { analyzeTask } from "@/lib/mock-analysis";
 import type { Task, AnalysisResult } from "@/types";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -26,10 +33,9 @@ const RISK_STYLES: Record<string, { label: string; bg: string; text: string; bor
   critical: { label: "极高风险", bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
 };
 
-export default function TaskDetailPage() {
-  const router = useRouter();
-  const params = useParams();
-  const taskId = params.id as string;
+function TaskDetailContent() {
+  const searchParams = useSearchParams();
+  const taskId = searchParams.get("id") || "";
 
   const [task, setTask] = useState<Task | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -39,61 +45,48 @@ export default function TaskDetailPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchTask();
-    fetchLatestAnalysis();
+    if (!taskId) {
+      setError("缺少任务 ID");
+      setLoading(false);
+      return;
+    }
+    const t = getTask(taskId);
+    if (!t) {
+      setError("任务不存在");
+      setLoading(false);
+      return;
+    }
+    setTask(t);
+    const latest = getLatestAnalysis(taskId);
+    if (latest) setAnalysis(latest.result_json);
+    setLoading(false);
   }, [taskId]);
 
-  async function fetchTask() {
-    try {
-      const res = await api.get(`/api/v1/tasks/${taskId}`);
-      setTask(res.data);
-    } catch (err: any) {
-      if (err.response?.status === 404) setError("任务不存在");
-      else setError("加载失败");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchLatestAnalysis() {
-    try {
-      const res = await api.get(`/api/v1/tasks/${taskId}/analyses/latest`);
-      setAnalysis(res.data.result_json);
-    } catch (err: any) {
-      // 404 表示尚无分析，静默处理
-      if (err.response?.status === 404) return;
-    }
-  }
-
-  async function handleAnalyze() {
+  function handleAnalyze() {
+    if (!task) return;
     setAnalyzing(true);
     try {
-      await api.post(`/api/v1/tasks/${taskId}/analyses`);
-      await Promise.all([fetchTask(), fetchLatestAnalysis()]);
+      const result = analyzeTask(task.task_type, task.title, task.description);
+      saveAnalysis(task.id, result);
+      setAnalysis(result);
+      setTask(getTask(taskId));
     } catch (err: any) {
-      alert(err.response?.data?.detail || "分析失败");
+      alert(err.message || "分析失败");
     } finally {
       setAnalyzing(false);
     }
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!confirm("确定删除这个任务吗？")) return;
-    try {
-      await api.delete(`/api/v1/tasks/${taskId}`);
-      router.push("/tasks");
-    } catch {
-      alert("删除失败");
-    }
+    deleteTask(taskId);
+    window.location.href = "/tasks";
   }
 
-  async function handleStatusUpdate(newStatus: string) {
-    try {
-      const res = await api.patch(`/api/v1/tasks/${taskId}`, { status: newStatus });
-      setTask(res.data);
-    } catch {
-      alert("更新失败");
-    }
+  function handleStatusUpdate(newStatus: Task["status"]) {
+    if (!task) return;
+    const updated = updateTask(taskId, { status: newStatus });
+    if (updated) setTask(updated);
   }
 
   function copyAnalysis() {
@@ -126,12 +119,10 @@ export default function TaskDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      {/* Breadcrumb */}
       <Link href="/tasks" className="text-sm text-gray-500 hover:text-brand-600 transition-colors">
         ← 返回任务列表
       </Link>
 
-      {/* Task header */}
       <div className="mt-4 mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusInfo.color}`}>
@@ -149,7 +140,6 @@ export default function TaskDetailPage() {
         </p>
       </div>
 
-      {/* Description */}
       {task.description && (
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="mb-2 text-sm font-medium text-gray-700">描述</h3>
@@ -157,7 +147,6 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      {/* Risk warning for high-risk tasks */}
       {riskInfo && (task.risk_level === "high" || task.risk_level === "critical") && (
         <div className={`mb-6 rounded-xl border-2 p-4 ${riskInfo.bg} ${riskInfo.border}`}>
           <p className={`text-sm font-semibold ${riskInfo.text}`}>
@@ -166,7 +155,6 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      {/* AI Analysis result */}
       {analysis ? (
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
           <div className="mb-4 flex items-center justify-between">
@@ -179,7 +167,6 @@ export default function TaskDetailPage() {
             </button>
           </div>
 
-          {/* Summary with risk badge */}
           <div className="mb-4 flex items-start gap-3">
             <span className={`mt-0.5 inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
               analysis.risk_level === "critical" ? "bg-red-100 text-red-700" :
@@ -192,34 +179,56 @@ export default function TaskDetailPage() {
             <p className="flex-1 text-sm font-medium text-gray-900">{analysis.summary}</p>
           </div>
 
-          {/* Risk points */}
           {analysis.risk_points?.length > 0 && (
-            <Section title="⚠️ 风险点" items={analysis.risk_points} color="text-orange-700" />
+            <div className="mb-3">
+              <h4 className="mb-1.5 text-xs font-semibold text-orange-700">⚠️ 风险点</h4>
+              <ul className="space-y-1">
+                {analysis.risk_points.map((p, i) => (
+                  <li key={i} className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">{p}</li>
+                ))}
+              </ul>
+            </div>
           )}
 
-          {/* Key facts */}
           {analysis.key_facts?.length > 0 && (
-            <Section title="📋 关键事实" items={analysis.key_facts} color="text-blue-700" />
+            <div className="mb-3">
+              <h4 className="mb-1.5 text-xs font-semibold text-blue-700">📋 关键事实</h4>
+              <ul className="space-y-1">
+                {analysis.key_facts.map((p, i) => (
+                  <li key={i} className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">{p}</li>
+                ))}
+              </ul>
+            </div>
           )}
 
-          {/* Suggested actions */}
           {analysis.suggested_actions?.length > 0 && (
-            <Section title="✅ 建议行动" items={analysis.suggested_actions} color="text-green-700" />
+            <div className="mb-3">
+              <h4 className="mb-1.5 text-xs font-semibold text-green-700">✅ 建议行动</h4>
+              <ul className="space-y-1">
+                {analysis.suggested_actions.map((p, i) => (
+                  <li key={i} className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">{p}</li>
+                ))}
+              </ul>
+            </div>
           )}
 
-          {/* Questions to verify */}
           {analysis.questions_to_verify?.length > 0 && (
-            <Section title="❓ 待核实事项" items={analysis.questions_to_verify} color="text-yellow-700" />
+            <div className="mb-3">
+              <h4 className="mb-1.5 text-xs font-semibold text-yellow-700">❓ 待核实事项</h4>
+              <ul className="space-y-1">
+                {analysis.questions_to_verify.map((p, i) => (
+                  <li key={i} className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">{p}</li>
+                ))}
+              </ul>
+            </div>
           )}
 
-          {/* Disclaimer */}
           {analysis.disclaimer && (
             <div className="mt-4 rounded-lg bg-gray-50 p-3">
               <p className="text-xs text-gray-500">{analysis.disclaimer}</p>
             </div>
           )}
 
-          {/* Re-analyze button */}
           <div className="mt-4 flex gap-2">
             <button
               onClick={handleAnalyze}
@@ -243,49 +252,23 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      {/* Actions */}
       <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
         <h3 className="mb-3 text-sm font-medium text-gray-700">状态流转</h3>
         <div className="flex flex-wrap gap-2">
           {task.status === "draft" && (
-            <button
-              onClick={() => handleStatusUpdate("analyzing")}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
-            >
-              开始分析
-            </button>
+            <button onClick={() => handleStatusUpdate("analyzing")} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">开始分析</button>
           )}
           {task.status === "analyzing" && (
-            <button
-              onClick={() => handleStatusUpdate("waiting_confirmation")}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              分析完成，待确认
-            </button>
+            <button onClick={() => handleStatusUpdate("waiting_confirmation")} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">分析完成，待确认</button>
           )}
           {task.status === "waiting_confirmation" && (
-            <button
-              onClick={() => handleStatusUpdate("ready_to_execute")}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-            >
-              确认，准备执行
-            </button>
+            <button onClick={() => handleStatusUpdate("ready_to_execute")} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors">确认，准备执行</button>
           )}
           {task.status === "ready_to_execute" && (
-            <button
-              onClick={() => handleStatusUpdate("in_progress")}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
-            >
-              开始执行
-            </button>
+            <button onClick={() => handleStatusUpdate("in_progress")} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">开始执行</button>
           )}
           {task.status === "in_progress" && (
-            <button
-              onClick={() => handleStatusUpdate("completed")}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-            >
-              标记完成
-            </button>
+            <button onClick={() => handleStatusUpdate("completed")} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors">标记完成</button>
           )}
           <button
             onClick={handleDelete}
@@ -296,7 +279,6 @@ export default function TaskDetailPage() {
         </div>
       </div>
 
-      {/* Disclaimer */}
       <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
         <p className="text-xs text-gray-400">
           ⚖️ 本工具 AI 分析结果仅供参考，不构成法律、金融或医疗建议。涉及重大决策请咨询专业人士。
@@ -306,18 +288,11 @@ export default function TaskDetailPage() {
   );
 }
 
-function Section({ title, items, color }: { title: string; items: string[]; color: string }) {
+export default function TaskDetailPage() {
   return (
-    <div className="mb-3">
-      <h4 className={`mb-1.5 text-xs font-semibold ${color}`}>{title}</h4>
-      <ul className="space-y-1">
-        {items.map((item, i) => (
-          <li key={i} className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">
-            {item}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Suspense fallback={<div className="mx-auto max-w-3xl px-4 py-12 text-center text-gray-400">加载中...</div>}>
+      <TaskDetailContent />
+    </Suspense>
   );
 }
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import api from "@/lib/api";
+import { register } from "@/lib/local-store";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,12 +20,10 @@ export default function RegisterPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await api.post("/api/v1/auth/register", form);
-      localStorage.setItem("token", res.data.access_token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
+      register(form);
       router.push("/tasks");
     } catch (err: any) {
-      setError(err.response?.data?.detail || "注册失败，请重试");
+      setError(err.message || "注册失败，请重试");
     } finally {
       setLoading(false);
     }

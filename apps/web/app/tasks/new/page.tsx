@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import api from "@/lib/api";
+import { createTask } from "@/lib/local-store";
+import { analyzeTask } from "@/lib/mock-analysis";
+import { saveAnalysis } from "@/lib/local-store";
 
 const TASK_TYPES = [
   { value: "scam_check", label: "🔍 这是不是坑？", desc: "判断短信、广告、兼职是否诈骗" },
@@ -15,7 +17,6 @@ const TASK_TYPES = [
 function NewTaskForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // 从 URL 获取预选类型：/tasks/new?scam_check / /tasks/new?refund_request / /tasks/new?document_review
   const preselected = TASK_TYPES.find((t) => searchParams.has(t.value))?.value || "";
 
   const [taskType, setTaskType] = useState(preselected);
@@ -24,16 +25,7 @@ function NewTaskForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Auto-fill title when type changes
-  useEffect(() => {
-    const match = TASK_TYPES.find((t) => t.value === taskType);
-    if (match && !title) {
-      setTitle(match.label.replace(/^[^\s]+\s/, ""));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskType]);
-
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!taskType) {
       setError("请选择任务类型");
@@ -42,24 +34,16 @@ function NewTaskForm() {
     setError("");
     setLoading(true);
     try {
-      const res = await api.post("/api/v1/tasks", {
-        title: title || TASK_TYPES.find((t) => t.value === taskType)?.label.replace(/^[^\s]+\s/, ""),
-        task_type: taskType,
-        description,
-      });
-      const taskId = res.data.id;
+      const taskTitle = title || TASK_TYPES.find((t) => t.value === taskType)?.label.replace(/^[^\s]+\s/, "") || "新任务";
+      const task = createTask({ title: taskTitle, task_type: taskType, description });
 
-      // 创建后自动触发 AI 分析
-      try {
-        await api.post(`/api/v1/tasks/${taskId}/analyses`);
-      } catch {
-        // 分析失败不阻塞跳转，用户可在详情页重试
-      }
+      // 自动触发 AI 分析
+      const result = analyzeTask(taskType, taskTitle, description);
+      saveAnalysis(task.id, result);
 
-      router.push(`/tasks/${taskId}`);
+      router.push(`/tasks/detail?id=`);
     } catch (err: any) {
-      if (err.response?.status === 401) return;
-      setError(err.response?.data?.detail || "创建失败，请重试");
+      setError(err.message || "创建失败，请重试");
     } finally {
       setLoading(false);
     }
@@ -71,7 +55,6 @@ function NewTaskForm() {
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
       )}
 
-      {/* Task type selection */}
       <div>
         <label className="mb-3 block text-sm font-medium text-gray-700">选择类型</label>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -93,11 +76,8 @@ function NewTaskForm() {
         </div>
       </div>
 
-      {/* Title */}
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-gray-700">
-          标题
-        </label>
+        <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-gray-700">标题</label>
         <input
           id="title"
           type="text"
@@ -109,11 +89,8 @@ function NewTaskForm() {
         />
       </div>
 
-      {/* Description */}
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700">
-          详细描述
-        </label>
+        <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700">详细描述</label>
         <textarea
           id="description"
           rows={5}
@@ -145,7 +122,6 @@ export default function NewTaskPage() {
         <h1 className="mt-3 text-2xl font-bold text-gray-900">新建任务</h1>
         <p className="mt-1 text-sm text-gray-500">选择类型，描述你的问题，AI 立即帮你分析</p>
       </div>
-
       <Suspense fallback={<div className="text-sm text-gray-500">加载中...</div>}>
         <NewTaskForm />
       </Suspense>

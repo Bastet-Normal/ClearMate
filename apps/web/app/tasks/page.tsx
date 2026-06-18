@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import api from "@/lib/api";
+import { getUserTasks, deleteTask } from "@/lib/local-store";
 import type { Task } from "@/types";
 
 const TASK_TYPE_LABELS: Record<string, string> = {
@@ -40,36 +40,17 @@ const RISK_COLORS: Record<string, string> = {
 export default function TasksPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchTasks();
+    setTasks(getUserTasks());
+    setLoading(false);
   }, []);
 
-  async function fetchTasks() {
-    try {
-      const res = await api.get("/api/v1/tasks");
-      setTasks(res.data.items);
-      setTotal(res.data.total);
-    } catch (err: any) {
-      if (err.response?.status === 401) return; // redirected by interceptor
-      setError("加载失败，请重试");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleDelete(taskId: string) {
+  function handleDelete(taskId: string) {
     if (!confirm("确定删除这个任务吗？")) return;
-    try {
-      await api.delete(`/api/v1/tasks/${taskId}`);
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
-      setTotal((prev) => prev - 1);
-    } catch {
-      alert("删除失败");
-    }
+    deleteTask(taskId);
+    setTasks(getUserTasks());
   }
 
   if (loading) {
@@ -82,12 +63,11 @@ export default function TasksPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">我的任务</h1>
           <p className="mt-1 text-sm text-gray-500">
-            共 {total} 个任务
+            共 {tasks.length} 个任务
           </p>
         </div>
         <Link
@@ -97,10 +77,6 @@ export default function TasksPage() {
           + 新建任务
         </Link>
       </div>
-
-      {error && (
-        <div className="mb-6 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
-      )}
 
       {tasks.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center">
@@ -140,7 +116,7 @@ export default function TasksPage() {
                         </span>
                       )}
                     </div>
-                    <Link href={`/tasks/${task.id}`} className="block">
+                    <Link href={`/tasks/detail?id=`} className="block">
                       <h3 className="text-base font-semibold text-gray-900 group-hover:text-brand-600 transition-colors truncate">
                         {task.title}
                       </h3>

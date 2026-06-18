@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import api from "@/lib/api";
+import { login } from "@/lib/local-store";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,12 +17,10 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await api.post("/api/v1/auth/login", { email, password });
-      localStorage.setItem("token", res.data.access_token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
+      login({ email, password });
       router.push("/tasks");
     } catch (err: any) {
-      setError(err.response?.data?.detail || "登录失败，请重试");
+      setError(err.message || "登录失败，请重试");
     } finally {
       setLoading(false);
     }

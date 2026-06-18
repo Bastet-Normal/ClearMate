@@ -3,34 +3,23 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import api from "@/lib/api";
-
-interface UserInfo {
-  id: number;
-  email: string;
-  nickname: string;
-  member_mode: string;
-}
+import { getStoredUser, isLoggedIn, logout as doLogout } from "@/lib/local-store";
 
 export function Header() {
   const router = useRouter();
-  const [user, setUser] = useState<UserInfo | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [nickname, setNickname] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("user");
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem("user");
-      }
-    }
+    setLoggedIn(isLoggedIn());
+    const user = getStoredUser();
+    if (user) setNickname(user.nickname);
   }, []);
 
   function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setUser(null);
+    doLogout();
+    setLoggedIn(false);
+    setNickname("");
     router.push("/");
   }
 
@@ -44,15 +33,21 @@ export function Header() {
           <span className="text-xl font-bold text-gray-900">ClearMate</span>
         </Link>
         <nav className="flex items-center gap-4">
-          {user ? (
+          {loggedIn ? (
             <>
+              <Link
+                href="/dashboard"
+                className="text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors"
+              >
+                仪表盘
+              </Link>
               <Link
                 href="/tasks"
                 className="text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors"
               >
                 我的任务
               </Link>
-              <span className="text-sm text-gray-500">{user.nickname}</span>
+              <span className="text-sm text-gray-500">{nickname}</span>
               <button
                 onClick={handleLogout}
                 className="text-sm font-medium text-gray-400 hover:text-red-500 transition-colors"
