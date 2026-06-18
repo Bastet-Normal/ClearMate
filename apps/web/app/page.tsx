@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { isLoggedIn, getStoredUser, setStoredUser } from "@/lib/local-store";
 import { analyzeTask } from "@/lib/mock-analysis";
+import { analyzeWithProgress } from "@/lib/analyze-progress";
 import type { MemberMode, AnalysisResult } from "@/types";
 
 const ENTRIES = [
@@ -21,6 +22,8 @@ export default function HomePage() {
   const [quickType, setQuickType] = useState("scam_check");
   const [quickResult, setQuickResult] = useState<AnalysisResult | null>(null);
   const [quickLoading, setQuickLoading] = useState(false);
+  const [quickProgress, setQuickProgress] = useState("");
+  const [quickProgressPct, setQuickProgressPct] = useState(0);
 
   useEffect(() => {
     setLoggedIn(isLoggedIn());
@@ -32,6 +35,21 @@ export default function HomePage() {
       if (user) setMemberMode(user.member_mode as MemberMode);
     }
   }, []);
+
+  async function handleQuickAnalyze() {
+    if (!quickInput.trim()) return;
+    setQuickLoading(true);
+    setQuickResult(null);
+    setQuickProgress("");
+    setQuickProgressPct(0);
+    const result = await analyzeWithProgress(
+      () => analyzeTask(quickType, quickInput, ""),
+      quickType,
+      (step, pct) => { setQuickProgress(step); setQuickProgressPct(pct); }
+    );
+    setQuickResult(result);
+    setQuickLoading(false);
+  }
 
   function toggleElderMode() {
     const newMode: MemberMode = memberMode === "elder" ? "normal" : "elder";
@@ -103,15 +121,28 @@ export default function HomePage() {
           </div>
           <div className="flex gap-3">
             <input type="text" value={quickInput} onChange={(e) => setQuickInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && quickInput.trim()) { setQuickResult(analyzeTask(quickType, quickInput, "")); } }}
+              onKeyDown={(e) => { if (e.key === "Enter" && quickInput.trim()) { handleQuickAnalyze(); } }}
               placeholder={quickType === "scam_check" ? "例如：收到短信说中奖了，要我转账100元解冻费" : quickType === "refund_request" ? "例如：淘宝买了手机，付款后卖家不发货" : "例如：租房合同里有一条自动续费条款看不懂"}
               className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-sm placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 shadow-sm"
             />
-            <button onClick={() => { if (!quickInput.trim()) return; setQuickLoading(true); setQuickResult(analyzeTask(quickType, quickInput, "")); setQuickLoading(false); }}
+            <button onClick={handleQuickAnalyze}
               disabled={quickLoading || !quickInput.trim()} className="btn-primary shrink-0 rounded-xl px-8 py-3.5 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
               {quickLoading ? "分析中..." : "分析"}
             </button>
           </div>
+
+          {/* Progress */}
+          {quickLoading && (
+            <div className="mt-4 rounded-xl bg-brand-50 p-4 border border-brand-100">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                <span className="text-sm font-medium text-brand-700">{quickProgress}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-brand-100 overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 transition-all duration-500" style={{ width: `${Math.round(quickProgressPct * 100)}%` }} />
+              </div>
+            </div>
+          )}
 
           {quickResult && (
             <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

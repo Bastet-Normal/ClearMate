@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createTask, saveAnalysis } from "@/lib/local-store";
 import { analyzeTask } from "@/lib/mock-analysis";
+import { analyzeWithProgress } from "@/lib/analyze-progress";
 
 const TASK_TYPES = [
   { value: "scam_check", label: "🔍 这是不是坑？", desc: "判断短信、广告、兼职是否诈骗", gradient: "from-red-500 to-orange-500" },
@@ -30,6 +31,8 @@ function NewTaskForm() {
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState("");
+  const [analyzeProgressPct, setAnalyzeProgressPct] = useState(0);
   const [fileParsing, setFileParsing] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileContent, setFileContent] = useState("");
@@ -96,15 +99,21 @@ function NewTaskForm() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!taskType) { setError("请选择任务类型"); return; }
     setError("");
     setLoading(true);
+    setAnalyzeProgress("");
+    setAnalyzeProgressPct(0);
     try {
       const taskTitle = title || "新任务";
       const task = createTask({ title: taskTitle, task_type: taskType, description });
-      const result = analyzeTask(taskType, taskTitle, description);
+      const result = await analyzeWithProgress(
+        () => analyzeTask(taskType, taskTitle, description),
+        taskType,
+        (step, pct) => { setAnalyzeProgress(step); setAnalyzeProgressPct(pct); }
+      );
       saveAnalysis(task.id, result);
       router.push(`/tasks/detail?id=${task.id}`);
     } catch (err: any) { setError(err.message || "创建失败"); } finally { setLoading(false); }
@@ -178,6 +187,19 @@ function NewTaskForm() {
       <button type="submit" disabled={loading || !taskType} className="btn-primary w-full rounded-xl py-3.5 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
         {loading ? "创建并分析中..." : "创建任务并让 AI 分析"}
       </button>
+
+      {/* Progress */}
+      {loading && analyzeProgress && (
+        <div className="rounded-xl bg-brand-50 p-4 border border-brand-100">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            <span className="text-sm font-medium text-brand-700">{analyzeProgress}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-brand-100 overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 transition-all duration-500" style={{ width: `${Math.round(analyzeProgressPct * 100)}%` }} />
+          </div>
+        </div>
+      )}
     </form>
   );
 }

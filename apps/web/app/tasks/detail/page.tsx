@@ -11,6 +11,7 @@ import {
   saveAnalysis,
 } from "@/lib/local-store";
 import { analyzeTask } from "@/lib/mock-analysis";
+import { analyzeWithProgress } from "@/lib/analyze-progress";
 import { getStoredUser } from "@/lib/local-store";
 import { useToast } from "@/components/ui/toast";
 import type { Task, AnalysisResult } from "@/types";
@@ -48,6 +49,8 @@ function TaskDetailContent() {
   const [analysisTime, setAnalysisTime] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState("");
+  const [analyzeProgressPct, setAnalyzeProgressPct] = useState(0);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
   const [showTemplate, setShowTemplate] = useState(-1);
@@ -67,11 +70,17 @@ function TaskDetailContent() {
     setLoading(false);
   }, [taskId]);
 
-  function handleAnalyze() {
+  async function handleAnalyze() {
     if (!task) return;
     setAnalyzing(true);
+    setAnalyzeProgress("");
+    setAnalyzeProgressPct(0);
     try {
-      const result = analyzeTask(task.task_type, task.title, task.description);
+      const result = await analyzeWithProgress(
+        () => analyzeTask(task.task_type, task.title, task.description),
+        task.task_type,
+        (step, pct) => { setAnalyzeProgress(step); setAnalyzeProgressPct(pct); }
+      );
       saveAnalysis(task.id, result);
       setAnalysis(result);
       setAnalysisTime(new Date().toISOString());
@@ -225,7 +234,18 @@ function TaskDetailContent() {
       )}
 
       {/* AI Analysis */}
-      {analysis ? (
+      {analyzing && (
+        <div className="mb-6 rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 to-indigo-50 p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            <span className="text-sm font-semibold text-brand-700">{analyzeProgress}</span>
+          </div>
+          <div className="h-2 rounded-full bg-brand-100 overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 transition-all duration-500" style={{ width: `${Math.round(analyzeProgressPct * 100)}%` }} />
+          </div>
+        </div>
+      )}
+      {!analyzing && analysis ? (
         <div className="mb-6 space-y-4">
           {/* Summary Card */}
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
