@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { isLoggedIn, getStoredUser, setStoredUser } from "@/lib/local-store";
-import type { MemberMode } from "@/types";
+import { analyzeTask } from "@/lib/mock-analysis";
+import type { MemberMode, AnalysisResult } from "@/types";
 
 const ENTRIES = [
   {
@@ -49,6 +50,9 @@ const TRUST = [
 export default function HomePage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [memberMode, setMemberMode] = useState<MemberMode>("normal");
+  const [quickInput, setQuickInput] = useState("");
+  const [quickResult, setQuickResult] = useState<AnalysisResult | null>(null);
+  const [quickLoading, setQuickLoading] = useState(false);
 
   useEffect(() => {
     setLoggedIn(isLoggedIn());
@@ -121,6 +125,62 @@ export default function HomePage() {
             <p className={`text-gray-600 leading-relaxed ${isElder ? "text-base" : "text-sm"}`}>{entry.description}</p>
           </Link>
         ))}
+      </div>
+
+      {/* Quick Try - 零注册体验 */}
+      <div className="mb-16 rounded-2xl border-2 border-brand-100 bg-brand-50/30 p-6">
+        <h2 className="mb-2 text-lg font-bold text-gray-900">⚡ 快速体验</h2>
+        <p className="mb-4 text-sm text-gray-500">不用注册，直接输入你想查的内容，AI 立刻帮你分析</p>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={quickInput}
+            onChange={(e) => setQuickInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && quickInput.trim()) { setQuickLoading(true); setQuickResult(analyzeTask("scam_check", quickInput, "")); setQuickLoading(false); } }}
+            placeholder="例如：收到短信说中奖了，要我转账100元解冻费"
+            className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          />
+          <button
+            onClick={() => { if (!quickInput.trim()) return; setQuickLoading(true); setQuickResult(analyzeTask("scam_check", quickInput, "")); setQuickLoading(false); }}
+            disabled={quickLoading || !quickInput.trim()}
+            className="shrink-0 rounded-lg bg-brand-600 px-6 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+          >
+            {quickLoading ? "分析中..." : "分析"}
+          </button>
+        </div>
+
+        {quickResult && (
+          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                quickResult.risk_level === "critical" ? "bg-red-100 text-red-700" :
+                quickResult.risk_level === "high" ? "bg-orange-100 text-orange-700" :
+                quickResult.risk_level === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"
+              }`}>
+                {{ low: "低风险", medium: "中风险", high: "高风险", critical: "极高风险" }[quickResult.risk_level]}
+              </span>
+              <p className="text-sm font-medium text-gray-900">{quickResult.summary}</p>
+            </div>
+            {quickResult.risk_points.length > 0 && quickResult.risk_points[0] !== "未发现明显风险关键词，但请保持警惕" && (
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-orange-700 mb-1">风险点：</p>
+                <ul className="space-y-0.5">{quickResult.risk_points.slice(0, 3).map((p, i) => <li key={i} className="text-xs text-gray-600 pl-2 border-l-2 border-gray-100">{p}</li>)}</ul>
+              </div>
+            )}
+            {quickResult.suggested_actions.length > 0 && (
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-green-700 mb-1">建议：</p>
+                <ul className="space-y-0.5">{quickResult.suggested_actions.slice(0, 3).map((a, i) => <li key={i} className="text-xs text-gray-600 pl-2 border-l-2 border-gray-100">{a}</li>)}</ul>
+              </div>
+            )}
+            <p className="text-xs text-gray-400 mt-2">{quickResult.disclaimer}</p>
+            {!loggedIn && (
+              <Link href="/register" className="mt-3 inline-block rounded-lg bg-brand-600 px-4 py-2 text-xs font-medium text-white hover:bg-brand-700 transition-colors">
+                注册保存分析记录 →
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Trust Signals */}

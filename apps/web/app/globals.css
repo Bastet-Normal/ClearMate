@@ -52,3 +52,21 @@
   font-size: 18px;
   min-height: 48px;
 }
+
+/* 移动端触摸优化：确保交互元素触摸目标 >= 44px */
+@media (pointer: coarse) {
+  button,
+  a,
+  input[type="checkbox"],
+  select {
+    min-height: 44px;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    min-height: 44px;
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+  }
+}

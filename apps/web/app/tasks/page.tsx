@@ -36,6 +36,9 @@ export default function TasksPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterRisk, setFilterRisk] = useState("");
 
   useEffect(() => {
     setTasks(getUserTasks());
@@ -47,6 +50,14 @@ export default function TasksPage() {
     deleteTask(taskId);
     setTasks(getUserTasks());
   }
+
+  // 筛选逻辑
+  const filteredTasks = tasks.filter((t) => {
+    if (search && !t.title.includes(search) && !t.description.includes(search)) return false;
+    if (filterType && t.task_type !== filterType) return false;
+    if (filterRisk && t.risk_level !== filterRisk) return false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -62,7 +73,7 @@ export default function TasksPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">我的任务</h1>
           <p className="mt-1 text-sm text-gray-500">
-            共 {tasks.length} 个任务
+            共 {filteredTasks.length} 个任务{filteredTasks.length !== tasks.length ? `（筛选自 ${tasks.length} 个）` : ""}
           </p>
         </div>
         <Link
@@ -72,6 +83,41 @@ export default function TasksPage() {
           + 新建任务
         </Link>
       </div>
+
+      {/* 搜索和筛选 */}
+      {tasks.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-3">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="搜索任务..."
+            className="flex-1 min-w-[200px] rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          />
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:outline-none"
+          >
+            <option value="">全部类型</option>
+            <option value="scam_check">🔍 这是不是坑</option>
+            <option value="refund_request">💰 退款/投诉</option>
+            <option value="document_review">📄 看懂文件</option>
+            <option value="general_life_issue">📋 其他</option>
+          </select>
+          <select
+            value={filterRisk}
+            onChange={(e) => setFilterRisk(e.target.value)}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:outline-none"
+          >
+            <option value="">全部风险</option>
+            <option value="critical">极高风险</option>
+            <option value="high">高风险</option>
+            <option value="medium">中风险</option>
+            <option value="low">低风险</option>
+          </select>
+        </div>
+      )}
 
       {tasks.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center">
@@ -89,7 +135,7 @@ export default function TasksPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {tasks.map((task) => {
+          {filteredTasks.map((task) => {
             const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.draft;
             return (
               <div
