@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getUserTasks, deleteTask } from "@/lib/local-store";
+import { useConfirm } from "@/components/ui/confirm";
 import type { Task } from "@/types";
 
 const TASK_TYPE_LABELS: Record<string, string> = { scam_check: "🔍 这是不是坑？", refund_request: "💰 退款/投诉", complaint: "💰 投诉", subscription_cancel: "💰 取消订阅", document_review: "📄 看懂文件", bill_check: "📄 账单检查", shopping_risk: "🔍 购物风险", general_life_issue: "📋 其他" };
@@ -18,10 +19,16 @@ export default function TasksPage() {
   const [filterType, setFilterType] = useState("");
   const [filterRisk, setFilterRisk] = useState("");
   const [sortBy, setSortBy] = useState<"time" | "risk">("time");
+  const confirm2 = useConfirm();
 
   useEffect(() => { setTasks(getUserTasks()); setLoading(false); }, []);
 
-  function handleDelete(taskId: string) { if (!confirm("确定删除？")) return; deleteTask(taskId); setTasks(getUserTasks()); }
+  async function handleDelete(taskId: string) {
+    const ok = await confirm2({ title: "删除任务", message: "确定删除这个任务吗？此操作不可恢复。", confirmText: "删除", danger: true });
+    if (!ok) return;
+    deleteTask(taskId);
+    setTasks(getUserTasks());
+  }
 
   const filteredTasks = tasks.filter((t) => { if (search && !t.title.includes(search) && !t.description.includes(search)) return false; if (filterType && t.task_type !== filterType) return false; if (filterRisk && t.risk_level !== filterRisk) return false; return true; });
 

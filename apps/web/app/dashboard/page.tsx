@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getStats, getUserTasks, isLoggedIn, logout } from "@/lib/local-store";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/ui/confirm";
 import type { Task } from "@/types";
 
 const RISK_COLORS: Record<string, string> = { low: "text-green-600 bg-green-50", medium: "text-amber-600 bg-amber-50", high: "text-orange-600 bg-orange-50", critical: "text-red-600 bg-red-50" };
@@ -14,6 +15,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<ReturnType<typeof getStats> | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const confirm2 = useConfirm();
 
   useEffect(() => { if (!isLoggedIn()) { router.push("/login"); return; } setStats(getStats()); setTasks(getUserTasks().slice(0, 5)); setLoading(false); }, [router]);
 
@@ -23,9 +25,11 @@ export default function DashboardPage() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `clearmate-export-${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(url);
   }
-  function handleClearData() {
-    if (!confirm("确定清空所有数据？此操作不可恢复！")) return;
-    if (!confirm("再次确认：所有任务和分析记录将被永久删除。")) return;
+  async function handleClearData() {
+    const ok1 = await confirm2({ title: "清空数据", message: "确定清空所有数据？此操作不可恢复！", confirmText: "继续", danger: true });
+    if (!ok1) return;
+    const ok2 = await confirm2({ title: "再次确认", message: "所有任务和分析记录将被永久删除。", confirmText: "确认清空", danger: true });
+    if (!ok2) return;
     const keys: string[] = []; for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key?.startsWith("cm_")) keys.push(key); } keys.forEach((k) => localStorage.removeItem(k)); logout(); router.push("/");
   }
 

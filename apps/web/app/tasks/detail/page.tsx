@@ -14,6 +14,7 @@ import { analyzeTask } from "@/lib/mock-analysis";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
 import { getStoredUser } from "@/lib/local-store";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
 import type { Task, AnalysisResult } from "@/types";
 
 const TASK_TYPE_LABELS: Record<string, string> = { scam_check: "🔍 这是不是坑？", refund_request: "💰 退款/投诉", complaint: "💰 投诉", subscription_cancel: "💰 取消订阅", document_review: "📄 看懂文件", bill_check: "📄 账单检查", shopping_risk: "🔍 购物风险", general_life_issue: "📋 其他" };
@@ -58,6 +59,7 @@ function TaskDetailContent() {
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const { showToast } = useToast();
+  const confirm2 = useConfirm();
   const [elderAlertDismissed, setElderAlertDismissed] = useState(false);
 
   useEffect(() => {
@@ -86,12 +88,13 @@ function TaskDetailContent() {
       setAnalysisTime(new Date().toISOString());
       const updated = getTask(taskId);
       if (updated) setTask(updated);
-    } catch (err: any) { alert(err.message || "分析失败"); }
+    } catch (err: any) { showToast(err.message || "分析失败", "error"); }
     finally { setAnalyzing(false); }
   }
 
-  function handleDelete() {
-    if (!confirm("确定删除这个任务吗？")) return;
+  async function handleDelete() {
+    const ok = await confirm2({ title: "删除任务", message: "确定删除这个任务吗？此操作不可恢复。", confirmText: "删除", danger: true });
+    if (!ok) return;
     deleteTask(taskId);
     window.location.href = "/tasks";
   }
@@ -125,7 +128,7 @@ function TaskDetailContent() {
     setEditing(true);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!task) return;
     const titleChanged = editTitle !== task.title;
     const descChanged = editDesc !== task.description;
@@ -134,7 +137,8 @@ function TaskDetailContent() {
     setEditing(false);
     // 描述或标题变更时提示重新分析
     if ((titleChanged || descChanged) && analysis) {
-      if (confirm("内容已变更，是否让 AI 重新分析？")) {
+      const ok = await confirm2({ title: "重新分析", message: "内容已变更，是否让 AI 重新分析？", confirmText: "重新分析" });
+      if (ok) {
         handleAnalyze();
       }
     }

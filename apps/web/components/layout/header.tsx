@@ -37,7 +37,6 @@ export function Header() {
     localStorage.setItem("cm_elder_mode", newMode);
     const user = getStoredUser();
     if (user) setStoredUser({ ...user, member_mode: newMode });
-    window.location.reload();
   }
 
   return (

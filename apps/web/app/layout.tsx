@@ -3,6 +3,7 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { ElderModeProvider } from "@/components/layout/elder-mode-provider";
 import { ToastProvider } from "@/components/ui/toast";
+import { ConfirmProvider } from "@/components/ui/confirm";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,9 +27,11 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col font-sans">
         <ElderModeProvider>
           <ToastProvider>
+            <ConfirmProvider>
             <Header />
             <main className="flex-1">{children}</main>
             <Footer />
+            </ConfirmProvider>
           </ToastProvider>
         </ElderModeProvider>
       </body>
