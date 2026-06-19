@@ -1,59 +1,69 @@
 # ClearMate — AI 生活事务代理平台
 
-**ClearMate** 是一个帮助普通人看懂风险、处理麻烦、维护权益、节省金钱和时间的 AI 生活事务代理平台。
+**ClearMate** 帮你看懂风险、处理麻烦、维护权益。上传截图、文件，或描述问题，AI 自动分析风险、生成维权材料、给出行动指南。
 
-不需要学 prompt，不需要懂技术。上传截图、文件，或描述你遇到的问题，ClearMate 自动分析风险、生成维权材料、跟进处理进度。
+🌐 **在线体验：https://wangjiehu.github.io/ClearMate/**
+
+---
+
+## 核心功能
+
+| 入口 | 说明 |
+|------|------|
+| 🔍 **这是不是坑？** | 判断短信、广告、兼职是否诈骗，拆解套路步骤 |
+| 💰 **退款/投诉/取消** | 生成投诉信、退款申请、客服话术 |
+| 🔓 **订阅陷阱** | 识别自动续费陷阱，给出取消路径 |
+| 📄 **看懂文件** | 上传文件或粘贴文本，提取关键信息、标注风险条款 |
+| 🛡️ **消费避坑** | 买前查一查，9大品类风险库（黄金/网购/租房/贷款/医美/投资/外卖/旅游/培训） |
+| ✅ **风险自检** | 回答问题快速评估风险，结果可保存 |
+
+---
+
+## 产品亮点
+
+- **取证清单**：按场景生成具体取证动作（不是笼统的"保留证据"）
+- **反套路话术**：实时对话场景的话术指导（不只是投诉信模板）
+- **相似案例**：8类诈骗案例库，含套路步骤拆解
+- **亲情守护**：高风险任务一键"发给家人确认"（navigator.share）
+- **老人模式**：大字体 + 高对比度 + 高风险弹窗提醒
+- **AI 分析进度**：分步展示思考过程，建立信任感
+- **模板自动填充**：维权模板中 `[你的姓名]` 自动从用户信息预填
+
+---
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 前端 | Next.js 14 (App Router) + Tailwind CSS |
+| 部署 | GitHub Pages (静态导出) |
+| 数据 | localStorage (纯前端，无需后端) |
+| AI 引擎 | 浏览器内规则引擎 + 模拟分析 (mock-analysis) |
+| 后端 | FastAPI + SQLite (本地开发用，线上未启用) |
 
 ---
 
 ## 快速开始
 
-### 前置要求
+### 在线体验
 
-- Python >= 3.11（后端，推荐用 conda 管理）
-- Node.js >= 18（前端）
+直接访问 https://wangjiehu.github.io/ClearMate/ ，无需安装。
 
-### 1. 启动后端（SQLite，零依赖）
-
-```bash
-cd apps/api
-
-# 安装依赖（在 conda 环境中）
-conda run -n happy pip install -e ".[dev]"
-
-# 启动开发服务器（默认 http://localhost:8000）
-conda run -n happy uvicorn app.main:app --reload --port 8000
-```
-
-后端默认使用 SQLite（`./clearmate.db`），无需安装数据库。如需切换 PostgreSQL，复制 `.env.example` 为 `.env` 并修改 `DATABASE_URL`。
-
-API 文档：http://localhost:8000/api/docs
-
-### 2. 启动前端
+### 本地开发
 
 ```bash
+# 前端
 cd apps/web
-
 npm install
 npm run dev
+# 访问 http://localhost:3000
+
+# 后端（可选）
+cd apps/api
+pip install -e ".[dev]"
+uvicorn app.main:app --reload --port 8000
+# API 文档 http://localhost:8000/api/docs
 ```
-
-默认地址：http://localhost:3000
-
-### 3. （可选）Docker Compose 完整环境
-
-如果你需要 PostgreSQL + Redis + 后端 + 前端一体化启动：
-
-```bash
-docker compose -f infra/docker-compose.yml up --build
-```
-
-启动后：
-- 前端：http://localhost:3000
-- 后端 API：http://localhost:8000
-- API 文档：http://localhost:8000/api/docs
-- PostgreSQL：localhost:5432
-- Redis：localhost:6379
 
 ---
 
@@ -62,118 +72,37 @@ docker compose -f infra/docker-compose.yml up --build
 ```
 ClearMate/
 ├── apps/
-│   ├── api/              # FastAPI 后端
-│   │   ├── app/
-│   │   │   ├── api/      # API 路由
-│   │   │   ├── core/     # 配置、数据库、安全
-│   │   │   ├── models/   # SQLAlchemy 模型
-│   │   │   ├── schemas/  # Pydantic 序列化
-│   │   │   ├── services/ # 业务逻辑
-│   │   │   │   └── llm/  # AI 分析服务
-│   │   │   ├── repositories/ # 数据访问
-│   │   │   ├── workers/  # Celery 任务（MVP 未启用）
-│   │   │   └── tests/    # pytest 测试
-│   │   └── alembic/      # 数据库迁移
+│   ├── api/              # FastAPI 后端（本地开发用）
 │   └── web/              # Next.js 前端
-│       ├── app/          # 页面
-│       ├── components/   # 通用组件
-│       ├── lib/          # 工具库
-│       └── types/        # TypeScript 类型
+│       ├── app/          # 页面路由
+│       │   ├── page.tsx          # 首页（Hero + 快速体验）
+│       │   ├── avoid-pit/        # 消费避坑
+│       │   ├── self-check/       # 风险自检
+│       │   ├── dashboard/        # 仪表盘
+│       │   ├── tasks/            # 任务列表/新建/详情
+│       │   ├── login/ & register/
+│       │   └── not-found.tsx     # 404 页面
+│       ├── components/
+│       │   ├── layout/   # Header / Footer / ElderMode
+│       │   └── ui/       # Toast / Confirm / Button / Card
+│       ├── lib/
+│       │   ├── mock-analysis.ts  # AI 分析引擎
+│       │   ├── analyze-progress.ts # 分析进度模拟
+│       │   ├── category-risks.ts # 品类风险知识库
+│       │   └── local-store.ts   # localStorage 数据层
+│       └── types/
 ├── docs/
-│   ├── architecture/     # 架构文档
-│   ├── product/          # 产品文档
-│   └── roadmap/          # 开发路线图
-├── infra/
-│   ├── docker/           # Dockerfile
-│   └── docker-compose.yml
-└── scripts/              # 辅助脚本
+└── .github/workflows/    # GitHub Pages 部署
 ```
-
----
-
-## 三个核心功能
-
-| 入口 | 说明 |
-|------|------|
-| 🔍 **这是不是坑？** | 判断短信、聊天记录、广告、兼职是不是诈骗 |
-| 💰 **帮我退款/投诉/取消** | 生成投诉信、退款申请、客服话术 |
-| 📄 **帮我看懂这份文件** | 提取关键信息、标注风险条款、大白话解释 |
-
----
-
-## 技术栈
-
-| 层 | 技术 |
-|----|------|
-| 前端框架 | Next.js 14 (App Router) |
-| 样式 | Tailwind CSS |
-| 状态管理 | Zustand + React Query |
-| 后端框架 | FastAPI + Uvicorn |
-| 数据库 | SQLite（默认）/ PostgreSQL |
-| AI | OpenAI-compatible API / Mock Provider |
-
----
-
-## 开发命令
-
-### 后端
-
-```bash
-# 跑测试
-conda run -n happy python -m pytest app/tests/ -v
-
-# 跑 lint
-conda run -n happy ruff check app/
-conda run -n happy ruff format app/
-
-# 跑 smoke 测试（端到端验证）
-conda run -n happy python test_smoke.py
-```
-
-### 前端
-
-```bash
-npm run dev      # 开发
-npm run build    # 构建
-npm run lint     # lint
-```
-
----
-
-## 开发路线
-
-1. **Phase 0** — 项目初始化 ✅
-2. **Phase 1** — 用户与任务基础系统 ✅
-3. **Phase 2** — 文件上传与文本提取 ✅
-4. **Phase 3** — AI 分析核心闭环 ✅
-5. **Phase 4** — 行动计划生成（待开始）
-6. **Phase 5** — Dashboard 与提醒系统（待开始）
-7. **Phase 6** — 风险规则系统（待开始）
-8. **Phase 7** — 后台管理（待开始）
-9. **Phase 8** — 工程完善（待开始）
-详情见 [docs/roadmap/IMPLEMENTATION_PLAN.md](docs/roadmap/IMPLEMENTATION_PLAN.md)
 
 ---
 
 ## 安全说明
 
-- AI 分析结果仅供参考，不能替代律师、医生、金融顾问
+- AI 分析结果仅供参考，不构成法律、金融或医疗建议
 - 涉及转账、验证码、身份证、银行卡时强制风险提醒
-- 敏感信息展示时自动遮盖
+- 密码哈希存储（非明文）
 - 所有 AI 分析输出均附带免责声明
-
----
-
-## 在线体验
-
-GitHub Pages 已部署，可直接访问：
-
-🌐 **https://wangjiehu.github.io/ClearMate/**
-
-特点：
-- 纯前端实现，无需后端
-- 数据存储在浏览器本地（localStorage）
-- AI 分析引擎在浏览器内运行（移植自后端 mock provider）
 
 ---
 

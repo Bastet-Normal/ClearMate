@@ -1,27 +1,73 @@
-# ClearMate - TODO 追踪
+# ClearMate - 开发进度
 
-## Phase 0
-- [x] 创建 monorepo 目录结构
-- [x] 编写 PRD / 架构文档 / 实施路线图
-- [x] 初始化 Next.js 前端（构建通过）
-- [x] 初始化 FastAPI 后端（/health 运行正常）
-- [x] 配置 Docker Compose (PostgreSQL + Redis + API + Web)
-- [x] 实现后端 /health 接口
-- [x] 实现前端首页（三个核心入口：防诈骗/退款投诉/文件解读）
-- [x] 配置后端 lint/format（ruff）
-- [x] 创建 .env.example
-- [x] 编写 README 启动说明
-- [ ] 配置前端 lint / format
-- [ ] 验证 Docker Compose 完整启动
+## ✅ 已完成
 
-## Phase 1
-- [x] 后端 User / Task 模型、Schema、Service、Repository
-- [x] 后端 Auth API（注册/登录/Me）+ JWT
-- [x] 后端 Task CRUD API（创建/列表/详情/更新/删除）
-- [x] 前端登录/注册页面
-- [x] 前端任务列表/新建/详情页面
-- [x] 前端 Header 组件（登录状态）
-- [x] 前端构建通过（next build ✓）
-- [x] 后端 smoke 测试通过（11/11 ✓）
-- [x] SQLite 替代 PostgreSQL（本地开发）
-- [x] useSearchParams Suspense 包裹修复
+### Phase 0：项目初始化
+- [x] Monorepo 目录结构
+- [x] PRD / 架构文档 / 实施路线图
+- [x] Next.js 前端 + FastAPI 后端
+- [x] Docker Compose 配置
+- [x] GitHub Pages 部署
+
+### Phase 1：用户与任务基础系统
+- [x] 用户注册/登录 (localStorage)
+- [x] 任务 CRUD
+- [x] 前端登录/注册/任务列表/新建/详情页面
+
+### Phase 2：文件上传与文本提取
+- [x] 前端文件上传组件
+- [x] PDF 文本提取（前端 pdf.js）
+- [x] 文件内容自动填入描述框
+
+### Phase 3：AI 分析核心闭环
+- [x] 浏览器内规则引擎 (mock-analysis)
+- [x] 风险关键词匹配 (16 条规则)
+- [x] 相似案例匹配 (8 类诈骗案例库)
+- [x] 分析结果结构化展示
+- [x] 分析进度模拟（分步反馈）
+
+### Phase 4：行动计划生成
+- [x] 投诉信/退款申请文案模板
+- [x] 客服话术/反套路话术生成
+- [x] 取证清单生成
+- [x] 订阅陷阱识别 + 取消路径
+
+### Phase 5：Dashboard 与提醒
+- [x] Dashboard 统计（总任务/待处理/高风险/已完成）
+- [x] 近 7 天新增任务
+- [x] 高风险任务醒目提醒
+- [x] 数据导出/清空
+
+### Phase 6：风险规则系统
+- [x] 16 条风险关键词规则
+- [x] 诈骗/退款/合同/订阅/账单/购物风险检测
+- [x] 9 大品类消费避坑知识库
+- [x] 风险自检（3 类清单：诈骗/消费/合同）
+
+### Phase 7：老人模式
+- [x] 大字体 + 高对比度
+- [x] 高风险弹窗提醒
+- [x] 亲情守护（发给家人确认）
+- [x] 移动端触摸优化
+
+### Phase 8：工程完善
+- [x] UI 全面重设计（深色 Hero + 品牌色设计系统）
+- [x] 404 页面
+- [x] 自定义确认弹窗（替代 confirm/alert）
+- [x] Toast 提示
+- [x] 模板占位符自动填充
+- [x] 密码哈希存储
+- [x] 任务编辑 + 编辑后重新分析
+- [x] 任务排序（按时间/按风险）
+- [x] 分析时间展示
+- [x] 复制全部补齐（assumptions + similar_cases + templates）
+
+---
+
+## 🔮 未来方向（需要架构升级）
+
+- [ ] 对接真实 LLM API（需要后端代理 API Key）
+- [ ] 后端 API 恢复对接（当前纯 localStorage）
+- [ ] PWA 离线支持
+- [ ] AI 代执行（打电话/发邮件，需要后端 + 电话系统）
+- [ ] 真实投诉数据接入（需要平台合作）
