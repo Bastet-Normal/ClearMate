@@ -59,6 +59,8 @@ export function Header() {
               <NavLink href="/tasks">我的任务</NavLink>
               <NavLink href="/self-check">风险自检</NavLink>
               <div className="ml-3 h-6 w-px bg-slate-200" />
+              <NavLink href="/settings">设置</NavLink>
+              <div className="ml-3 h-6 w-px bg-slate-200" />
               <button onClick={toggleElderMode} className="ml-2 rounded-lg p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-all" title={isElder ? "标准模式" : "老人模式"}>
                 {isElder ? "🔤" : "👴"}
               </button>

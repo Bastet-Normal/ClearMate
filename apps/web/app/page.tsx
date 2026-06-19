@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { isLoggedIn, getStoredUser, setStoredUser } from "@/lib/local-store";
 import { analyzeTask } from "@/lib/mock-analysis";
+import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
 import type { MemberMode, AnalysisResult } from "@/types";
 
@@ -43,7 +44,7 @@ export default function HomePage() {
     setQuickProgress("");
     setQuickProgressPct(0);
     const result = await analyzeWithProgress(
-      () => analyzeTask(quickType, quickInput, ""),
+      () => unifiedAnalyze(quickType, quickInput, ""),
       quickType,
       (step, pct) => { setQuickProgress(step); setQuickProgressPct(pct); }
     );

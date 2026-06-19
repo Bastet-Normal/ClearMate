@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createTask, saveAnalysis } from "@/lib/local-store";
 import { analyzeTask } from "@/lib/mock-analysis";
+import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
 
 const TASK_TYPES = [
@@ -110,7 +111,7 @@ function NewTaskForm() {
       const taskTitle = title || "新任务";
       const task = createTask({ title: taskTitle, task_type: taskType, description });
       const result = await analyzeWithProgress(
-        () => analyzeTask(taskType, taskTitle, description),
+        () => unifiedAnalyze(taskType, taskTitle, description),
         taskType,
         (step, pct) => { setAnalyzeProgress(step); setAnalyzeProgressPct(pct); }
       );

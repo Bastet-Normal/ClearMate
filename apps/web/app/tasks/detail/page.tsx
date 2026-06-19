@@ -11,6 +11,7 @@ import {
   saveAnalysis,
 } from "@/lib/local-store";
 import { analyzeTask } from "@/lib/mock-analysis";
+import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
 import { getStoredUser } from "@/lib/local-store";
 import { useToast } from "@/components/ui/toast";
@@ -80,7 +81,7 @@ function TaskDetailContent() {
     setAnalyzeProgressPct(0);
     try {
       const result = await analyzeWithProgress(
-        () => analyzeTask(task.task_type, task.title, task.description),
+        () => unifiedAnalyze(task.task_type, task.title, task.description),
         task.task_type,
         (step, pct) => { setAnalyzeProgress(step); setAnalyzeProgressPct(pct); }
       );
