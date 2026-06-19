@@ -22,7 +22,6 @@ export function Header() {
     } else {
       setIsElder(elderPref === "elder");
     }
-    // 监听 API 401 事件
     function handleUnauthorized() {
       setLoggedIn(false);
       setNickname("");
@@ -48,15 +47,13 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-white/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white font-extrabold text-sm shadow-lg shadow-brand-500/25">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/90 backdrop-blur-md">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
             C
           </div>
-          <span className="text-xl font-bold bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent">
-            ClearMate
-          </span>
+          <span className="text-lg font-bold text-slate-900">ClearMate</span>
         </Link>
 
         {/* Desktop nav */}
@@ -66,21 +63,19 @@ export function Header() {
               <NavLink href="/dashboard">仪表盘</NavLink>
               <NavLink href="/tasks">我的任务</NavLink>
               <NavLink href="/self-check">风险自检</NavLink>
-              <div className="ml-3 h-6 w-px bg-slate-200" />
-              <NavLink href="/settings">设置</NavLink>
-              <div className="ml-3 h-6 w-px bg-slate-200" />
-              <button onClick={toggleElderMode} className="ml-2 rounded-lg p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-all" title={isElder ? "标准模式" : "老人模式"}>
+              <div className="mx-2 h-5 w-px bg-slate-200" />
+              <button onClick={toggleElderMode} className="rounded-lg p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-all" title={isElder ? "标准模式" : "老人模式"}>
                 {isElder ? "🔤" : "👴"}
               </button>
-              <span className="ml-2 text-sm font-medium text-slate-600">{nickname}</span>
-              <button onClick={handleLogout} className="ml-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+              <span className="ml-1 text-sm font-medium text-slate-600">{nickname}</span>
+              <button onClick={handleLogout} className="ml-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all">
                 退出
               </button>
             </>
           ) : (
             <>
               <NavLink href="/login">登录</NavLink>
-              <Link href="/register" className="btn-primary rounded-xl px-4 py-2 text-sm font-semibold shadow-lg shadow-brand-500/25">
+              <Link href="/register" className="btn-primary rounded-lg px-4 py-2 text-sm font-semibold">
                 免费注册
               </Link>
             </>
@@ -97,7 +92,7 @@ export function Header() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="sm:hidden border-t border-slate-100 bg-white/95 backdrop-blur-xl px-6 py-4 space-y-3">
+        <div className="sm:hidden border-t border-slate-100 bg-white px-6 py-4 space-y-2">
           {loggedIn ? (
             <>
               <MobileLink href="/dashboard" onClick={() => setMenuOpen(false)}>仪表盘</MobileLink>
@@ -124,7 +119,7 @@ export function Header() {
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition-all">
+    <Link href={href} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:text-brand-700 hover:bg-slate-50 transition-all">
       {children}
     </Link>
   );

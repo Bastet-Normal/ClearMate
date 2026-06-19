@@ -5,59 +5,78 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 224 71% 4%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
-    --primary: 250 89% 65%;
+    --card-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --destructive: 0 84% 60%;
-    --border: 220 13% 91%;
-    --ring: 250 89% 65%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --destructive: 0 72% 51%;
+    --border: 214 32% 91%;
+    --ring: 221 83% 53%;
     --radius: 0.75rem;
   }
 }
 
 @layer base {
-  * { @apply border-gray-200; }
+  * { @apply border-slate-200; }
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: "cv11", "ss01";
   }
 }
 
-/* 渐变背景工具类 */
+/* Hero — 深蓝单色，不用渐变 */
 .bg-hero {
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4338ca 60%, #6366f1 100%);
+  background-color: #0f172a;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
 }
-.bg-hero-soft {
-  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 50%, #c7d2fe 100%);
-}
-.bg-risk-low { background: linear-gradient(135deg, #dcfce7, #bbf7d0); }
-.bg-risk-medium { background: linear-gradient(135deg, #fef9c3, #fef08a); }
-.bg-risk-high { background: linear-gradient(135deg, #ffedd5, #fed7aa); }
-.bg-risk-critical { background: linear-gradient(135deg, #fee2e2, #fecaca); }
 
-/* 渐变按钮 */
+/* 主按钮 — 实色，不用渐变 */
 .btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background-color: #2563eb;
   color: white;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 .btn-primary:hover {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background-color: #1d4ed8;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+.btn-primary:active {
+  transform: translateY(0);
 }
 
-/* 卡片悬浮效果 */
+/* 次按钮 */
+.btn-secondary {
+  background-color: white;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  transition: all 0.15s ease;
+}
+.btn-secondary:hover {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+/* 卡片悬浮 */
 .card-hover {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  border-color: #cbd5e1;
 }
+
+/* 风险等级色块 */
+.risk-badge-critical { background-color: #dc2626; color: white; }
+.risk-badge-high { background-color: #ea580c; color: white; }
+.risk-badge-medium { background-color: #ca8a04; color: white; }
+.risk-badge-low { background-color: #16a34a; color: white; }
 
 /* 老人模式 */
 .elder-mode { font-size: 20px; line-height: 2; }
@@ -67,7 +86,6 @@
 .elder-mode h1 { font-size: 2rem !important; }
 .elder-mode h2 { font-size: 1.5rem !important; }
 .elder-mode h3 { font-size: 1.25rem !important; }
-/* 老人模式：高风险任务醒目红色边框 */
 .elder-mode .risk-high-alert {
   border: 3px solid #ef4444 !important;
   background: #fef2f2 !important;
