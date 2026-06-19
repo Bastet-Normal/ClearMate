@@ -47,16 +47,17 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/90 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200/50 bg-white/80 backdrop-blur-xl">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-md shadow-brand-500/20">
             C
           </div>
-          <span className="text-lg font-bold text-slate-900">ClearMate</span>
+          <span className="text-lg font-bold bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent">
+            ClearMate
+          </span>
         </Link>
 
-        {/* Desktop nav */}
         <nav className="hidden sm:flex items-center gap-1">
           {loggedIn ? (
             <>
@@ -82,7 +83,6 @@ export function Header() {
           )}
         </nav>
 
-        {/* Mobile menu button */}
         <button onClick={() => setMenuOpen(!menuOpen)} className="sm:hidden rounded-lg p-2 text-slate-600 hover:bg-slate-100">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             {menuOpen ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /> : <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />}
@@ -90,7 +90,6 @@ export function Header() {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {menuOpen && (
         <div className="sm:hidden border-t border-slate-100 bg-white px-6 py-4 space-y-2">
           {loggedIn ? (

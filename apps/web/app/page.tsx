@@ -78,42 +78,38 @@ export default function HomePage() {
     { value: "subscription_cancel", label: "订阅陷阱" },
   ];
 
-  const tools = [
-    { href: "/avoid-pit", icon: "🛡️", label: "消费避坑" },
-    { href: "/self-check", icon: "✅", label: "风险自检" },
-    { href: "/tasks/new?document_review", icon: "📄", label: "看懂文件" },
-    { href: "/tasks/new?subscription_cancel", icon: "🔓", label: "订阅陷阱" },
-  ];
-
   return (
     <div className={isElder ? "text-lg elder-mode" : ""}>
-      <section className="bg-hero min-h-screen flex flex-col justify-center">
-        <div className="mx-auto max-w-3xl w-full px-6 py-12">
-          {/* 标题区 */}
-          <div className="mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              遇到麻烦？先问 ClearMate
-            </h1>
-            <p className="mt-2 text-sm text-slate-300">
-              描述问题，AI 立刻分析风险、生成维权材料
-              {loggedIn && (
-                <Link href="/dashboard" className="ml-2 text-white font-semibold underline underline-offset-2 hover:text-blue-300">
-                  进入仪表盘 →
-                </Link>
-              )}
-            </p>
-          </div>
+      {/* Hero */}
+      <section className="bg-hero relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMikiLz48L3N2Zz4=')] opacity-60" />
+        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-brand-500/20 blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-brand-600/10 blur-3xl" />
+        
+        <div className="relative mx-auto max-w-4xl px-6 pt-16 pb-12 sm:pt-20">
+          <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-tight leading-tight">
+            遇到麻烦？<br />
+            <span className="bg-gradient-to-r from-brand-300 to-white bg-clip-text text-transparent">先问 ClearMate</span>
+          </h1>
+          <p className="mt-4 text-base sm:text-lg text-slate-300 leading-relaxed">
+            描述问题，AI 立刻分析风险、生成维权材料。
+            {loggedIn && (
+              <Link href="/dashboard" className="ml-2 text-white font-semibold underline underline-offset-2 hover:text-brand-200">
+                进入仪表盘 →
+              </Link>
+            )}
+          </p>
 
           {/* 输入卡片 */}
-          <div className="rounded-2xl bg-white p-5 shadow-xl">
+          <div className="mt-8 rounded-2xl border border-white/10 bg-white/95 backdrop-blur-md p-5 shadow-2xl shadow-brand-900/30">
             <div className="mb-3 flex flex-wrap gap-1.5">
               {types.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => { setQuickType(opt.value); setQuickResult(null); }}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                     quickType === opt.value
-                      ? "bg-brand-600 text-white"
+                      ? "bg-brand-600 text-white shadow"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
@@ -139,7 +135,6 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* 进度 */}
             {quickLoading && (
               <div className="mt-3 space-y-1.5">
                 <div className="flex items-center gap-2">
@@ -155,8 +150,7 @@ export default function HomePage() {
 
           {/* 结果卡片 */}
           {quickResult && (
-            <div className="mt-4 rounded-2xl bg-white p-5 shadow-xl">
-              {/* 风险等级 */}
+            <div className="mt-4 rounded-2xl bg-white p-5 shadow-2xl shadow-brand-900/30">
               <div className="mb-4 flex items-center gap-3">
                 <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${RISK_BADGE[quickResult.risk_level] || RISK_BADGE.low}`}>
                   {RISK_LABEL[quickResult.risk_level]}
@@ -164,7 +158,6 @@ export default function HomePage() {
                 <p className="text-sm font-semibold text-slate-900">{quickResult.summary}</p>
               </div>
 
-              {/* 风险点 */}
               {quickResult.risk_points.length > 0 && quickResult.risk_points[0] !== "未发现明显风险关键词，但请保持警惕" && (
                 <div className="mb-3">
                   <p className="mb-1 text-xs font-semibold text-orange-600">⚠️ 风险点</p>
@@ -176,7 +169,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* 行动指南 */}
               {(quickResult.evidence_checklist?.length > 0 || quickResult.counter_scripts?.length > 0 || quickResult.suggested_actions.length > 0) && (
                 <div className="mb-3 rounded-xl bg-slate-50 p-3">
                   <p className="mb-2 text-xs font-bold text-slate-700">🎯 你现在应该做什么</p>
@@ -201,7 +193,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* 求助渠道 */}
               {quickResult.help_channels.length > 0 && (
                 <div className="mb-3">
                   <p className="mb-1.5 text-xs font-semibold text-brand-600">📞 求助渠道</p>
@@ -220,7 +211,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* 模板 */}
               {quickResult.templates.length > 0 && (
                 <div className="mb-3">
                   <p className="mb-1.5 text-xs font-semibold text-slate-600">📝 可用模板</p>
@@ -243,7 +233,12 @@ export default function HomePage() {
 
           {/* 工具入口 */}
           <div className="mt-8 flex flex-wrap items-center gap-2">
-            {tools.map((t) => (
+            {[
+              { href: "/avoid-pit", icon: "🛡️", label: "消费避坑" },
+              { href: "/self-check", icon: "✅", label: "风险自检" },
+              { href: "/tasks/new?document_review", icon: "📄", label: "看懂文件" },
+              { href: "/tasks/new?subscription_cancel", icon: "🔓", label: "订阅陷阱" },
+            ].map((t) => (
               <Link
                 key={t.href}
                 href={t.href}

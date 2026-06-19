@@ -9,7 +9,8 @@ import type { Task } from "@/types";
 
 const TASK_TYPE_LABELS: Record<string, string> = { scam_check: "🔍 这是不是坑？", refund_request: "💰 退款/投诉", complaint: "💰 投诉", subscription_cancel: "💰 取消订阅", document_review: "📄 看懂文件", bill_check: "📄 账单检查", shopping_risk: "🔍 购物风险", general_life_issue: "📋 其他" };
 const STATUS_LABELS: Record<string, { label: string; color: string }> = { draft: { label: "待处理", color: "bg-slate-100 text-slate-600" }, analyzing: { label: "分析中", color: "bg-brand-50 text-brand-600" }, in_progress: { label: "进行中", color: "bg-brand-50 text-brand-600" }, completed: { label: "已完成", color: "bg-green-50 text-green-700" }, archived: { label: "已归档", color: "bg-slate-100 text-slate-400" } };
-const RISK_COLORS: Record<string, string> = { low: "text-green-600", medium: "text-amber-600", high: "text-orange-600", critical: "text-red-600" };
+const RISK_COLORS: Record<string, string> = { low: "bg-green-100 text-green-700", medium: "bg-amber-100 text-amber-700", high: "bg-orange-100 text-orange-700", critical: "bg-red-100 text-red-700" };
+const RISK_LABELS: Record<string, string> = { low: "低", medium: "中", high: "高", critical: "极高" };
 
 export default function TasksPage() {
   const router = useRouter();
@@ -77,7 +78,7 @@ export default function TasksPage() {
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="text-xs font-medium text-slate-500">{TASK_TYPE_LABELS[task.task_type] || task.task_type}</span>
                   <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${s.color}`}>{s.label}</span>
-                  {task.risk_level && <span className={`text-xs font-bold ${RISK_COLORS[task.risk_level]}`}>风险: {task.risk_level}</span>}
+                  {task.risk_level && <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${RISK_COLORS[task.risk_level]}`}>{RISK_LABELS[task.risk_level] || task.risk_level}风险</span>}
                 </div>
                 <h3 className="text-base font-semibold text-slate-800 group-hover:text-brand-600 transition-colors truncate">{task.title}</h3>
                 {task.description && <p className="mt-1 text-sm text-slate-500 line-clamp-2">{task.description}</p>}

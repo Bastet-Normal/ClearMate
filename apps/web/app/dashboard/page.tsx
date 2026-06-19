@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/ui/confirm";
 import type { Task } from "@/types";
 
-const RISK_COLORS: Record<string, string> = { low: "text-green-600 bg-green-50", medium: "text-amber-600 bg-amber-50", high: "text-orange-600 bg-orange-50", critical: "text-red-600 bg-red-50" };
+const RISK_COLORS: Record<string, string> = { low: "bg-green-100 text-green-700", medium: "bg-amber-100 text-amber-700", high: "bg-orange-100 text-orange-700", critical: "bg-red-100 text-red-700" };
 const STATUS_LABELS: Record<string, { label: string; color: string }> = { draft: { label: "待处理", color: "bg-slate-100 text-slate-600" }, analyzing: { label: "分析中", color: "bg-brand-50 text-brand-600" }, in_progress: { label: "进行中", color: "bg-brand-50 text-brand-600" }, completed: { label: "已完成", color: "bg-green-50 text-green-700" }, archived: { label: "已归档", color: "bg-slate-100 text-slate-400" } };
 
 export default function DashboardPage() {

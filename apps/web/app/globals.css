@@ -22,44 +22,30 @@
 @layer base {
   * { @apply border-slate-200; }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-white text-slate-900 antialiased;
     font-feature-settings: "cv11", "ss01";
   }
 }
 
-/* Hero — 深蓝单色，不用渐变 */
+/* Hero — 深色渐变，有质感 */
 .bg-hero {
-  background-color: #0f172a;
-  background-image: 
-    radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
+  background: linear-gradient(135deg, #0c0a1a 0%, #1a1040 40%, #1e1b4b 70%, #251e5e 100%);
 }
 
-/* 主按钮 — 实色，不用渐变 */
+/* 主按钮 */
 .btn-primary {
-  background-color: #2563eb;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
   color: white;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
 }
 .btn-primary:hover {
-  background-color: #1d4ed8;
+  background: linear-gradient(135deg, #4338ca, #4f46e5);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);
 }
 .btn-primary:active {
   transform: translateY(0);
-}
-
-/* 次按钮 */
-.btn-secondary {
-  background-color: white;
-  color: #334155;
-  border: 1px solid #e2e8f0;
-  transition: all 0.15s ease;
-}
-.btn-secondary:hover {
-  border-color: #cbd5e1;
-  background-color: #f8fafc;
 }
 
 /* 卡片悬浮 */
@@ -68,15 +54,14 @@
 }
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-  border-color: #cbd5e1;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
 }
 
-/* 风险等级色块 */
-.risk-badge-critical { background-color: #dc2626; color: white; }
-.risk-badge-high { background-color: #ea580c; color: white; }
-.risk-badge-medium { background-color: #ca8a04; color: white; }
-.risk-badge-low { background-color: #16a34a; color: white; }
+/* 风险等级 */
+.risk-badge-critical { background: linear-gradient(135deg, #dc2626, #ef4444); color: white; }
+.risk-badge-high { background: linear-gradient(135deg, #c2410c, #ea580c); color: white; }
+.risk-badge-medium { background: linear-gradient(135deg, #a16207, #ca8a04); color: white; }
+.risk-badge-low { background: linear-gradient(135deg, #15803d, #16a34a); color: white; }
 
 /* 老人模式 */
 .elder-mode { font-size: 20px; line-height: 2; }
