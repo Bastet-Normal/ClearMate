@@ -40,6 +40,11 @@ class AnalysisResult(BaseModel):
     assumptions: list[str] = Field(default_factory=list, description="推测")
     suggested_actions: list[str] = Field(default_factory=list, description="建议行动")
     questions_to_verify: list[str] = Field(default_factory=list, description="待核实事项")
+    evidence_checklist: list[str] = Field(default_factory=list, description="取证清单")
+    counter_scripts: list[str] = Field(default_factory=list, description="反套路话术")
+    help_channels: list[dict] = Field(default_factory=list, description="求助渠道")
+    templates: list[dict] = Field(default_factory=list, description="维权模板")
+    similar_cases: list[dict] = Field(default_factory=list, description="相似案例")
     disclaimer: str = Field(default="", description="免责声明")
 
 

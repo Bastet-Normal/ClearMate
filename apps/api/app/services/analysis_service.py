@@ -35,6 +35,11 @@ class AnalysisService:
             assumptions=[],
             suggested_actions=[],
             questions_to_verify=[],
+            evidence_checklist=[],
+            counter_scripts=[],
+            help_channels=[],
+            templates=[],
+            similar_cases=[],
             disclaimer="本分析仅供参考，不构成法律、金融或医疗建议。",
         )
 

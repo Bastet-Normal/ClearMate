@@ -26,6 +26,11 @@ _OUTPUT_FORMAT = """\
   "assumptions": ["推测1"],
   "suggested_actions": ["建议行动1", "建议行动2"],
   "questions_to_verify": ["待核实事项1"],
+  "evidence_checklist": ["取证动作1", "取证动作2"],
+  "counter_scripts": ["应对话术1", "应对话术2"],
+  "help_channels": [{"name": "渠道名", "contact": "联系方式", "desc": "说明"}],
+  "templates": [{"title": "模板标题", "content": "模板内容"}],
+  "similar_cases": [{"title": "案例标题", "pattern": "套路模式", "advice": "建议"}],
   "disclaimer": "本分析仅供参考，不构成法律、金融或医疗建议。"
 }
 
@@ -33,6 +38,11 @@ _OUTPUT_FORMAT = """\
 - risk_level 必须是 low/medium/high/critical 之一
 - 涉及转账、验证码、身份证、银行卡、解冻费、保证金时，risk_level 至少为 high
 - 所有数组字段至少返回一个元素（如无则返回 ["无"]）
+- evidence_checklist 必须具体到动作级别（如"截图订单详情页含订单号"），不要笼统说"保留证据"
+- counter_scripts 是用户可以直接对对方说的话术
+- help_channels 是可拨打的电话或可访问的网站
+- templates 是用户可以直接使用的维权文案模板
+- similar_cases 是类似的已知案例
 - 用中文输出，通俗易懂，避免专业术语
 - disclaimer 固定为上述文案
 """
