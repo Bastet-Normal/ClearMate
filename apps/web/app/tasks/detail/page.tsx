@@ -251,103 +251,105 @@ function TaskDetailContent() {
         </div>
       )}
       {!analyzing && analysis ? (
-        <div className="mb-6 space-y-4">
-          {/* Summary Card */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-800">🤖 AI 分析结果</h3>
+        <div className="mb-6 space-y-5">
+          {/* 1. 风险判定 — 最醒目 */}
+          <div className={`rounded-2xl border-2 p-5 ${
+            analysis.risk_level === "critical" ? "border-red-300 bg-gradient-to-br from-red-50 to-rose-50" :
+            analysis.risk_level === "high" ? "border-orange-300 bg-gradient-to-br from-orange-50 to-amber-50" :
+            analysis.risk_level === "medium" ? "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50" :
+            "border-green-300 bg-gradient-to-br from-green-50 to-emerald-50"
+          }`}>
+            <div className="flex items-center gap-3 mb-3">
+              <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${
+                RISK_PILL[analysis.risk_level] || "bg-slate-100 text-slate-600"
+              }`}>
+                {{ low: "低风险", medium: "中风险", high: "高风险", critical: "极高风险" }[analysis.risk_level] || analysis.risk_level}
+              </span>
+              <p className="text-sm font-bold text-slate-900 leading-relaxed">{analysis.summary}</p>
+            </div>
+            {analysis.risk_points?.length > 0 && <Section title="⚠️ 风险点" items={analysis.risk_points} color="text-orange-600" borderColor="border-orange-200" />}
+          </div>
+
+          {/* 2. 行动指南 — 第二优先 */}
+          <div className="rounded-2xl border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-5">
+            <h3 className="mb-3 text-sm font-bold text-green-800">🎯 你现在应该做什么</h3>
+            {analysis.evidence_checklist?.length > 0 && <Section title="📸 取证清单" items={analysis.evidence_checklist} color="text-blue-600" borderColor="border-blue-200" />}
+            {analysis.counter_scripts?.length > 0 && <Section title="💬 反套路话术" items={analysis.counter_scripts} color="text-green-700" borderColor="border-green-300" />}
+            {analysis.suggested_actions?.length > 0 && <Section title="✅ 建议行动" items={analysis.suggested_actions} color="text-green-600" borderColor="border-green-200" />}
+            {analysis.help_channels?.length > 0 && (
+              <div className="mb-3">
+                <h4 className="mb-2 text-xs font-bold text-brand-600">📞 求助渠道</h4>
+                <div className="flex flex-wrap gap-2">
+                  {analysis.help_channels.map((ch, i) => (
+                    <span key={i} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs border border-brand-100 shadow-sm">
+                      <span className="font-semibold text-brand-700">{ch.name}</span>
+                      {/^\d+$/.test(ch.contact) ? (
+                        <a href={`tel:${ch.contact}`} className="font-mono font-bold text-brand-600 hover:underline">{ch.contact}</a>
+                      ) : (
+                        <span className="font-mono font-bold text-brand-600">{ch.contact}</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3. 详情 — 可折叠 */}
+          <details className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <summary className="cursor-pointer rounded-t-2xl p-5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+              📋 查看详细分析
+            </summary>
+            <div className="px-5 pb-5 space-y-3 border-t border-slate-100 pt-4">
+              {analysis.key_facts?.length > 0 && <Section title="📋 关键事实" items={analysis.key_facts} color="text-blue-600" borderColor="border-blue-200" />}
+              {analysis.questions_to_verify?.length > 0 && <Section title="❓ 待核实事项" items={analysis.questions_to_verify} color="text-amber-600" borderColor="border-amber-200" />}
+              {analysis.assumptions?.length > 0 && <Section title="💡 分析假设" items={analysis.assumptions} color="text-slate-500" borderColor="border-slate-200" />}
+
+              {analysis.similar_cases?.length > 0 && (
+                <div className="mb-3">
+                  <h4 className="mb-2 text-xs font-semibold text-violet-600">📚 相似案例</h4>
+                  <div className="space-y-2">
+                    {analysis.similar_cases.map((c, i) => (
+                      <div key={i} className="rounded-xl bg-violet-50 p-3 border border-violet-100">
+                        <p className="text-sm font-semibold text-violet-700">{c.title}</p>
+                        <p className="mt-1 text-xs text-violet-600 leading-relaxed">{c.pattern}</p>
+                        <p className="mt-1 text-xs text-violet-500 font-medium">💡 {c.advice}</p>
+                        {c.steps && c.steps.length > 0 && (
+                          <div className="mt-2 pl-3 border-l-2 border-violet-200">
+                            <p className="text-xs font-semibold text-violet-600 mb-1">套路步骤：</p>
+                            {c.steps.map((s, si) => (
+                              <p key={si} className="text-xs text-violet-500 leading-relaxed">{s}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {analysis.disclaimer && (
+                <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
+                  <p className="text-xs text-slate-400">{analysis.disclaimer}</p>
+                </div>
+              )}
+
               <div className="flex items-center gap-3">
-                {analysisTime && <span className="text-xs text-slate-400">{new Date(analysisTime).toLocaleString("zh-CN")}</span>}
+                {analysisTime && <span className="text-xs text-slate-400">分析于 {new Date(analysisTime).toLocaleString("zh-CN")}</span>}
                 <button onClick={() => copyText(formatAnalysisAsText(analysis), "all")}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
                   {copied === "all" ? "✓ 已复制" : "📋 复制全部"}
                 </button>
               </div>
             </div>
+          </details>
 
-            {/* Risk + Summary */}
-            <div className="mb-5 flex items-start gap-3">
-              <span className={`mt-0.5 inline-flex shrink-0 rounded-full px-3 py-1 text-xs font-bold ${RISK_PILL[analysis.risk_level] || "bg-slate-100 text-slate-600"}`}>
-                {{ low: "低风险", medium: "中风险", high: "高风险", critical: "极高风险" }[analysis.risk_level] || analysis.risk_level}
-              </span>
-              <p className="text-sm font-semibold text-slate-800 leading-relaxed">{analysis.summary}</p>
-            </div>
-
-            {/* Risk Points */}
-            {analysis.risk_points?.length > 0 && <Section title="⚠️ 风险点" items={analysis.risk_points} color="text-orange-600" borderColor="border-orange-200" />}
-            {/* Key Facts */}
-            {analysis.key_facts?.length > 0 && <Section title="📋 关键事实" items={analysis.key_facts} color="text-blue-600" borderColor="border-blue-200" />}
-            {/* Suggested Actions */}
-            {analysis.suggested_actions?.length > 0 && <Section title="✅ 建议行动" items={analysis.suggested_actions} color="text-green-600" borderColor="border-green-200" />}
-            {/* Questions */}
-            {analysis.questions_to_verify?.length > 0 && <Section title="❓ 待核实事项" items={analysis.questions_to_verify} color="text-amber-600" borderColor="border-amber-200" />}
-            {/* Evidence Checklist */}
-            {analysis.evidence_checklist?.length > 0 && <Section title="📸 取证清单" items={analysis.evidence_checklist} color="text-blue-600" borderColor="border-blue-200" />}
-            {/* Counter Scripts */}
-            {analysis.counter_scripts?.length > 0 && <Section title="💬 反套路话术" items={analysis.counter_scripts} color="text-green-600" borderColor="border-green-200" />}
-            {/* Assumptions */}
-            {analysis.assumptions?.length > 0 && <Section title="💡 分析假设" items={analysis.assumptions} color="text-slate-500" borderColor="border-slate-200" />}
-
-            {/* Similar Cases */}
-            {analysis.similar_cases?.length > 0 && (
-              <div className="mb-3">
-                <h4 className="mb-2 text-xs font-semibold text-violet-600">📚 相似案例</h4>
-                <div className="space-y-2">
-                  {analysis.similar_cases.map((c, i) => (
-                    <div key={i} className="rounded-xl bg-violet-50 p-3 border border-violet-100">
-                      <p className="text-sm font-semibold text-violet-700">{c.title}</p>
-                      <p className="mt-1 text-xs text-violet-600 leading-relaxed">{c.pattern}</p>
-                      <p className="mt-1 text-xs text-violet-500 font-medium">💡 {c.advice}</p>
-                      {c.steps && c.steps.length > 0 && (
-                        <div className="mt-2 pl-3 border-l-2 border-violet-200">
-                          <p className="text-xs font-semibold text-violet-600 mb-1">套路步骤：</p>
-                          {c.steps.map((s, si) => (
-                            <p key={si} className="text-xs text-violet-500 leading-relaxed">{s}</p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Help Channels */}
-            {analysis.help_channels?.length > 0 && (
-              <div className="mb-3">
-                <h4 className="mb-2 text-xs font-semibold text-brand-600">📞 求助渠道</h4>
-                <div className="space-y-2">
-                  {analysis.help_channels.map((ch, i) => (
-                    <div key={i} className="rounded-xl bg-brand-50 p-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-brand-700">{ch.name}</span>
-                        {/^\d+$/.test(ch.contact) ? (
-                          <a href={`tel:${ch.contact}`} className="rounded-lg bg-white px-2 py-0.5 text-xs font-mono font-bold text-brand-600 border border-brand-200 hover:bg-brand-100 transition-colors">{ch.contact}</a>
-                        ) : (
-                          <span className="rounded-lg bg-white px-2 py-0.5 text-xs font-mono font-bold text-brand-600 border border-brand-200">{ch.contact}</span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-brand-500">{ch.desc}</p>
-                      {ch.url && <a href={ch.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-brand-600 underline hover:text-brand-700">访问官网 →</a>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {analysis.disclaimer && (
-              <div className="mt-4 rounded-xl bg-slate-50 p-3 border border-slate-100">
-                <p className="text-xs text-slate-400">{analysis.disclaimer}</p>
-              </div>
-            )}
-
-            <div className="mt-5">
+          <div className="mt-5">
               <button onClick={handleAnalyze} disabled={analyzing}
                 className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
                 {analyzing ? "分析中..." : "🔄 重新分析"}
               </button>
             </div>
-          </div>
 
           {/* Scam Step Breakdown */}
           {analysis.scam_steps && analysis.scam_steps.length > 0 && (
