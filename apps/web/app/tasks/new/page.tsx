@@ -4,7 +4,6 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createTask, saveAnalysis } from "@/lib/local-store";
-import { analyzeTask } from "@/lib/mock-analysis";
 import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
 

@@ -3,19 +3,29 @@
  * 
  * 当 LLM 模式为 "api" 时，前端通过此模块调用后端 FastAPI。
  * 后端负责代理 LLM API Key，前端不接触密钥。
+ * 
+ * API URL 从 localStorage 读取（设置页面可修改），
+ * fallback 到 NEXT_PUBLIC_API_URL 环境变量。
  */
 
 import axios from "axios";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+/** 获取当前 API base URL */
+function getApiBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("cm_api_url");
+    if (stored) return stored;
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+}
 
+/** 每次请求前动态设置 baseURL */
 const api = axios.create({
-  baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
 });
 
-// 请求拦截：附加 JWT token
 api.interceptors.request.use((config) => {
+  config.baseURL = getApiBaseUrl();
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("cm_token");
     if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -23,14 +33,15 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 响应拦截：401 跳登录
+// 响应拦截：401 跳登录（用 router 而非 window.location）
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("cm_token");
       localStorage.removeItem("cm_user");
-      window.location.href = "/login";
+      // 用软跳转而非 window.location，basePath 下不会出错
+      window.dispatchEvent(new CustomEvent("cm:unauthorized"));
     }
     return Promise.reject(error);
   }
@@ -40,7 +51,7 @@ api.interceptors.response.use(
 
 export async function apiLogin(email: string, password: string) {
   const res = await api.post("/api/v1/auth/login", { email, password });
-  return res.data; // { access_token, token_type, user }
+  return res.data;
 }
 
 export async function apiRegister(email: string, nickname: string, password: string) {

@@ -10,7 +10,6 @@ import {
   getLatestAnalysis,
   saveAnalysis,
 } from "@/lib/local-store";
-import { analyzeTask } from "@/lib/mock-analysis";
 import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
 import { getStoredUser } from "@/lib/local-store";

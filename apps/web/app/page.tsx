@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { isLoggedIn, getStoredUser, setStoredUser } from "@/lib/local-store";
-import { analyzeTask } from "@/lib/mock-analysis";
 import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
 import type { MemberMode, AnalysisResult } from "@/types";

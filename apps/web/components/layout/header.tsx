@@ -22,7 +22,15 @@ export function Header() {
     } else {
       setIsElder(elderPref === "elder");
     }
-  }, []);
+    // 监听 API 401 事件
+    function handleUnauthorized() {
+      setLoggedIn(false);
+      setNickname("");
+      router.push("/login");
+    }
+    window.addEventListener("cm:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("cm:unauthorized", handleUnauthorized);
+  }, [router]);
 
   function handleLogout() {
     doLogout();
