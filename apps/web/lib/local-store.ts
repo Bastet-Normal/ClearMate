@@ -14,6 +14,17 @@ const STORAGE_KEYS = {
   FILES: "cm_files",
 } as const;
 
+// ---- Simple hash (prevent plaintext passwords in localStorage) ----
+
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash + ch) | 0;
+  }
+  return "h_" + Math.abs(hash).toString(36);
+}
+
 // ---- User ----
 
 export interface LocalUser {
@@ -225,8 +236,8 @@ export function register(data: {
     created_at: new Date().toISOString(),
   };
 
-  // 存密码（仅本地演示，不安全但 GitHub Pages 无后端）
-  const userWithPw = { ...user, password: data.password };
+  // 存密码哈希（简单 hash，仅防止 DevTools 明文可见，非安全加密）
+  const userWithPw = { ...user, password: simpleHash(data.password) };
   users.push(userWithPw);
   saveStoredUsers(users);
 
@@ -243,7 +254,7 @@ export function login(data: {
 }): { token: string; user: LocalUser } {
   const users = getStoredUsers();
   const found = users.find((u) => u.email === data.email);
-  if (!found || found.password !== data.password) {
+  if (!found || found.password !== simpleHash(data.password)) {
     throw new Error("邮箱或密码错误");
   }
   if (!found.is_active) {

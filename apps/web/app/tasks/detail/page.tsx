@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getTask,
@@ -42,6 +42,7 @@ const RISK_PILL: Record<string, string> = {
 };
 
 function TaskDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const taskId = searchParams.get("id") || "";
 
@@ -96,7 +97,7 @@ function TaskDetailContent() {
     const ok = await confirm2({ title: "删除任务", message: "确定删除这个任务吗？此操作不可恢复。", confirmText: "删除", danger: true });
     if (!ok) return;
     deleteTask(taskId);
-    window.location.href = "/tasks";
+    router.push("/tasks");
   }
 
   function handleStatusUpdate(newStatus: Task["status"]) {
