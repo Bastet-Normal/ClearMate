@@ -85,6 +85,20 @@ def _build_mock_result(messages: list[LLMMessage]) -> AnalysisResult:
             "[Mock] 对方身份是否可核实？",
             "[Mock] 是否有官方渠道可验证此信息？",
         ],
+        evidence_checklist=[
+            "[Mock] 截图保存所有相关页面和聊天记录",
+            "[Mock] 保留转账/支付凭证截图",
+        ],
+        counter_scripts=[
+            "[Mock] 我不会转账，请你通过官方渠道证明身份",
+            "[Mock] 我需要和家人确认后再决定",
+        ],
+        help_channels=[
+            {"name": "反诈中心", "contact": "96110", "desc": "全国反诈咨询热线"},
+            {"name": "消费者投诉", "contact": "12315", "desc": "消费者权益保护"},
+        ],
+        templates=[],
+        similar_cases=[],
         disclaimer="本分析由 mock provider 生成，仅供参考，不构成法律、金融或医疗建议。",
     )
 
