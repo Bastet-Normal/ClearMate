@@ -2,23 +2,30 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getLLMMode, setLLMMode, getApiUrl, setApiUrl, type LLMMMode } from "@/lib/llm-mode";
+import { getLLMMode, setLLMMode, getApiUrl, setApiUrl, type LLMMode } from "@/lib/llm-mode";
 import { checkApiAvailable } from "@/lib/unified-analyze";
 import { useToast } from "@/components/ui/toast";
+import { getStoredProfile, setStoredProfile } from "@/lib/local-store";
 
 export default function SettingsPage() {
-  const [mode, setMode] = useState<LLMMMode>("local");
+  const [mode, setMode] = useState<LLMMode>("local");
   const [apiUrl, setApiUrlState] = useState("");
   const [checking, setChecking] = useState(false);
   const [apiOk, setApiOk] = useState<boolean | null>(null);
+  const [realName, setRealName] = useState("");
+  const [phone, setPhone] = useState("");
   const { showToast } = useToast();
 
   useEffect(() => {
+    document.title = "系统设置 - ClearMate";
     setMode(getLLMMode());
     setApiUrlState(getApiUrl());
+    const profile = getStoredProfile();
+    setRealName(profile.real_name);
+    setPhone(profile.phone);
   }, []);
 
-  async function handleModeChange(newMode: LLMMMode) {
+  async function handleModeChange(newMode: LLMMode) {
     setMode(newMode);
     setLLMMode(newMode);
     if (newMode === "api") {
@@ -51,12 +58,141 @@ export default function SettingsPage() {
     showToast("API 地址已保存");
   }
 
+  function handleSaveProfile() {
+    setStoredProfile({ real_name: realName, phone });
+    showToast("预填资料已成功保存！");
+  }
+
+  function handleExportData() {
+    try {
+      const data: Record<string, string | null> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("cm_")) {
+          data[key] = localStorage.getItem(key);
+        }
+      }
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
+      link.href = url;
+      link.download = `clearmate_backup_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast("备份文件已成功导出！");
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    } catch (err: any) {
+      showToast("导出备份失败: " + err.message, "error");
+    }
+  }
+
+  function handleImportData(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const resultText = event.target?.result as string;
+        const parsed = JSON.parse(resultText);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("格式无效，备份文件必须是 JSON 对象");
+        }
+        const keys = Object.keys(parsed);
+        const cmKeys = keys.filter(k => k.startsWith("cm_"));
+        if (cmKeys.length === 0) {
+          throw new Error("文件中未包含 ClearMate 的有效数据");
+        }
+        cmKeys.forEach(key => {
+          const val = parsed[key];
+          if (val !== null && val !== undefined) {
+            localStorage.setItem(key, val);
+          }
+        });
+        showToast("备份已成功导入，正在重新加载页面...");
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(50);
+        }
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch (err: any) {
+        showToast("导入失败: " + err.message, "error");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
       <Link href="/" className="text-sm text-slate-500 hover:text-brand-600 transition-colors">← 返回首页</Link>
       <div className="mt-6 mb-8">
         <h1 className="text-3xl font-bold text-slate-900">⚙️ 设置</h1>
-        <p className="mt-2 text-sm text-slate-500">配置 AI 分析模式和后端连接</p>
+        <p className="mt-2 text-sm text-slate-500">配置 AI 分析模式和您的申诉人档案信息</p>
+      </div>
+
+      {/* User Profile Info Card */}
+      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm mb-6">
+        <h2 className="mb-2 text-lg font-bold text-slate-900">✍️ 申诉预填资料</h2>
+        <p className="text-xs text-slate-500 mb-4">在此设置您的基本资料，智能诊断后生成的维权申诉信模板将自动填入这些信息，省去手动填写的麻烦。</p>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">您的姓名 / 称呼</label>
+            <input 
+              type="text" 
+              value={realName} 
+              onChange={(e) => setRealName(e.target.value)} 
+              placeholder="例如：张三（可选，用于申诉人署名）"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">手机号码</label>
+            <input 
+              type="text" 
+              value={phone} 
+              onChange={(e) => setPhone(e.target.value)} 
+              placeholder="例如：13800000000（可选，用于联系方式）"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 transition-all"
+            />
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button 
+              onClick={handleSaveProfile} 
+              className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold shadow-md shadow-brand-500/20"
+            >
+              保存预填资料
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Data Backup and Restore */}
+      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm mb-6">
+        <h2 className="mb-2 text-lg font-bold text-slate-900">💾 数据备份与恢复</h2>
+        <p className="text-xs text-slate-500 mb-4">备份您的所有任务、诊断书、以及预填资料到本地文件，或从备份文件中恢复，防止浏览器缓存清理导致数据丢失。</p>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={handleExportData} 
+            className="rounded-xl border border-brand-200 bg-white px-5 py-2.5 text-sm font-semibold text-brand-600 hover:bg-brand-50 transition-all shadow-sm"
+          >
+            📤 导出备份文件
+          </button>
+          <label className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-all shadow-sm cursor-pointer">
+            📥 导入备份文件
+            <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
+          </label>
+        </div>
       </div>
 
       {/* LLM Mode */}

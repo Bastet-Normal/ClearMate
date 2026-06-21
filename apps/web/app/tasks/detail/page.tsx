@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import {
   getTask,
@@ -12,7 +13,8 @@ import {
 } from "@/lib/local-store";
 import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
-import { getStoredUser } from "@/lib/local-store";
+import { getStoredUser, getStoredProfile } from "@/lib/local-store";
+import { autoFillTemplate } from "@/lib/template-filler";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import type { Task, AnalysisResult } from "@/types";
@@ -62,6 +64,52 @@ function TaskDetailContent() {
   const { showToast } = useToast();
   const confirm2 = useConfirm();
   const [elderAlertDismissed, setElderAlertDismissed] = useState(false);
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+  const [analysisProvider, setAnalysisProvider] = useState<string>("");
+  const [analysisModel, setAnalysisModel] = useState<string>("");
+
+  // Cleanup TTS on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  function speakReport(result: AnalysisResult) {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      alert("抱歉，您的浏览器不支持语音播放。");
+      return;
+    }
+    
+    if (isPlayingVoice) {
+      window.speechSynthesis.cancel();
+      setIsPlayingVoice(false);
+      return;
+    }
+    
+    const isElder = typeof window !== "undefined" && localStorage.getItem("cm_elder_mode") === "elder";
+    const textToSpeak = `诊断书分析结论为：${result.summary}。当前风险评估级别：${
+      result.risk_level === "critical" ? "极高" :
+      result.risk_level === "high" ? "高" :
+      result.risk_level === "medium" ? "中" : "低"
+    }风险。建议行动包括：${result.suggested_actions.join("，")}`;
+    
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = "zh-CN";
+    utterance.rate = isElder ? 0.85 : 1.0;
+    
+    utterance.onend = () => {
+      setIsPlayingVoice(false);
+    };
+    utterance.onerror = () => {
+      setIsPlayingVoice(false);
+    };
+    
+    window.speechSynthesis.speak(utterance);
+    setIsPlayingVoice(true);
+  }
 
   useEffect(() => {
     if (!taskId) { setError("缺少任务 ID"); setLoading(false); return; }
@@ -69,9 +117,22 @@ function TaskDetailContent() {
     if (!t) { setError("任务不存在"); setLoading(false); return; }
     setTask(t);
     const latest = getLatestAnalysis(taskId);
-    if (latest) { setAnalysis(latest.result_json); setAnalysisTime(latest.created_at); }
+    if (latest) { 
+      setAnalysis(latest.result_json); 
+      setAnalysisTime(latest.created_at); 
+      setAnalysisProvider(latest.provider || "client-mock");
+      setAnalysisModel(latest.model || "client-v1");
+    }
     setLoading(false);
   }, [taskId]);
+
+  useEffect(() => {
+    if (task) {
+      document.title = `${task.title} - 任务详情 - ClearMate`;
+    } else {
+      document.title = "任务详情 - ClearMate";
+    }
+  }, [task]);
 
   async function handleAnalyze() {
     if (!task) return;
@@ -84,9 +145,16 @@ function TaskDetailContent() {
         task.task_type,
         (step, pct) => { setAnalyzeProgress(step); setAnalyzeProgressPct(pct); }
       );
-      saveAnalysis(task.id, result);
+      const provider = result._provider || "client-mock";
+      const model = result._model || "client-v2";
+      saveAnalysis(task.id, result, provider, model);
       setAnalysis(result);
       setAnalysisTime(new Date().toISOString());
+      setAnalysisProvider(provider);
+      setAnalysisModel(model);
+      if (result._error) {
+        showToast(result._error, "error");
+      }
       const updated = getTask(taskId);
       if (updated) setTask(updated);
     } catch (err: any) { showToast(err.message || "分析失败", "error"); }
@@ -110,16 +178,15 @@ function TaskDetailContent() {
     navigator.clipboard.writeText(text);
     setCopied(label);
     showToast("已复制到剪贴板");
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
     setTimeout(() => setCopied(""), 2000);
   }
 
   // 模板占位符自动填充
   function fillTemplatePlaceholders(content: string): string {
-    const user = getStoredUser();
-    if (!user) return content;
-    return content
-      .replace(/\[你的姓名\]/g, user.nickname || "[你的姓名]")
-      .replace(/\[手机号\]/g, user.email ? `[手机号]` : "[手机号]");
+    return autoFillTemplate(content, task?.description || "");
   }
 
   function startEditing() {
@@ -229,8 +296,15 @@ function TaskDetailContent() {
           <div className="mt-3 flex flex-wrap gap-2">
             <button onClick={() => {
               const text = `【ClearMate 风险提醒】\n任务：${task.title}\n风险等级：${task.risk_level === "critical" ? "极高" : "高"}风险\n${analysis?.summary || "请帮我看看这个是不是坑"}`;
-              if (navigator.share) { navigator.share({ title: "ClearMate 风险提醒", text }); }
-              else { navigator.clipboard.writeText(text); showToast("已复制，发给家人确认"); }
+              if (navigator.share) { 
+                navigator.share({ title: "ClearMate 风险提醒", text }); 
+              } else { 
+                navigator.clipboard.writeText(text); 
+                showToast("已复制，发给家人确认"); 
+                if (typeof navigator !== "undefined" && navigator.vibrate) {
+                  navigator.vibrate(50);
+                }
+              }
             }} className="rounded-xl bg-white/80 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-white transition-all shadow-sm border border-red-200">
               👨‍👩‍👧 发给家人确认
             </button>
@@ -252,6 +326,36 @@ function TaskDetailContent() {
       )}
       {!analyzing && analysis ? (
         <div className="mb-6 space-y-5">
+          {/* 维权诊断书标题与朗读控制 */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-slate-800">🛡️ 维权诊断书</h2>
+              {analysisProvider && (
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  analysisProvider === "custom-gemini" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" :
+                  analysisProvider === "api" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                  "bg-slate-50 text-slate-600 border border-slate-200"
+                }`}>
+                  <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                  {analysisProvider === "custom-gemini" ? "直连 Gemini AI" :
+                   analysisProvider === "api" ? "智能 AI (后端)" :
+                   "规则引擎 (本地)"}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => speakReport(analysis)}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all shadow-sm border ${
+                isPlayingVoice 
+                  ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100/80 active:scale-95" 
+                  : "bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100/80 active:scale-95"
+              }`}
+            >
+              {isPlayingVoice ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              <span>{isPlayingVoice ? "停止朗读" : "朗读结论"}</span>
+            </button>
+          </div>
+
           {/* 1. 风险判定 — 最醒目 */}
           <div className={`rounded-2xl border-2 p-5 ${
             analysis.risk_level === "critical" ? "border-red-300 bg-gradient-to-br from-red-50 to-rose-50" :

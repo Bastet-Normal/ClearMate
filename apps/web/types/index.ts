@@ -76,4 +76,7 @@ export interface AnalysisResult {
   scam_steps?: ScamStep[];
   similar_cases: SimilarCase[];
   disclaimer: string;
+  _provider?: string;
+  _model?: string;
+  _error?: string;
 }

@@ -1,12 +1,14 @@
 """Alembic environment configuration."""
 from logging.config import fileConfig
+
 from sqlalchemy import engine_from_config, pool
+
 from alembic import context
 from app.core.config import settings
 from app.core.database import Base
 
 # Import all models so they are registered on Base.metadata
-from app.models import User, Task  # noqa: F401
+from app.models import Task, User  # noqa: F401
 
 config = context.config
 

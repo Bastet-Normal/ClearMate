@@ -1,7 +1,7 @@
 """File model - 用户上传的文件。"""
 from datetime import datetime, timezone
 
-from sqlalchemy import String, DateTime, ForeignKey, Integer, BigInteger
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base

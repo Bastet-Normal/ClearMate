@@ -9,7 +9,6 @@ MVP 支持：
 """
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 _MAX_TEXT_LENGTH = 50000

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { register } from "@/lib/local-store";
@@ -10,6 +10,10 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ email: "", nickname: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    document.title = "注册 - ClearMate";
+  }, []);
 
   function updateField(key: string, value: string) { setForm((prev) => ({ ...prev, [key]: value })); }
 

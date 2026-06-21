@@ -3,11 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.auth import get_current_user
 from app.core.database import get_db
 from app.models.analysis import Analysis
 from app.models.task import Task
 from app.models.user import User
-from app.api.auth import get_current_user
 from app.schemas.analysis import AnalysisOut
 from app.services.analysis_service import AnalysisService
 from app.services.llm import get_llm_client

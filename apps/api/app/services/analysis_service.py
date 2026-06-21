@@ -1,12 +1,14 @@
 """Analysis service - 调用 LLM 完成一次分析并落库。"""
 from __future__ import annotations
 
-from app.services.llm import LLMClient, LLMMessage, AnalysisResult as LLMAnalysisResult
-from app.services.llm.prompts import build_messages
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.analysis import Analysis
 from app.models.task import Task
 from app.repositories.task import TaskRepository
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.llm import AnalysisResult as LLMAnalysisResult
+from app.services.llm import LLMClient
+from app.services.llm.prompts import build_messages
 
 
 class AnalysisService:

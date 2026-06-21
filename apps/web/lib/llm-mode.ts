@@ -8,17 +8,17 @@
  * 模式存储在 localStorage，用户可在设置中切换。
  */
 
-export type LLMMMode = "local" | "api";
+export type LLMMode = "local" | "api";
 
 const STORAGE_KEY = "cm_llm_mode";
 const API_URL_KEY = "cm_api_url";
 
-export function getLLMMode(): LLMMMode {
+export function getLLMMode(): LLMMode {
   if (typeof window === "undefined") return "local";
-  return (localStorage.getItem(STORAGE_KEY) as LLMMMode) || "local";
+  return (localStorage.getItem(STORAGE_KEY) as LLMMode) || "local";
 }
 
-export function setLLMMode(mode: LLMMMode) {
+export function setLLMMode(mode: LLMMode) {
   localStorage.setItem(STORAGE_KEY, mode);
 }
 

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Mic, MicOff } from "lucide-react";
 import Link from "next/link";
 import { createTask, saveAnalysis } from "@/lib/local-store";
 import { unifiedAnalyze } from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
+import { useToast } from "@/components/ui/toast";
 
 const TASK_TYPES = [
   { value: "scam_check", label: "🔍 这是不是坑？", desc: "判断短信、广告、兼职是否诈骗", gradient: "from-red-500 to-orange-500" },
@@ -31,11 +33,84 @@ function NewTaskForm() {
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { showToast } = useToast();
   const [analyzeProgress, setAnalyzeProgress] = useState("");
   const [analyzeProgressPct, setAnalyzeProgressPct] = useState(0);
   const [fileParsing, setFileParsing] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileContent, setFileContent] = useState("");
+
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    document.title = "新建维权任务 - ClearMate";
+  }, []);
+
+  // Speech Recognition (STT) initialization
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.continuous = true;
+        rec.interimResults = false;
+        rec.lang = "zh-CN";
+        
+        rec.onresult = (event: any) => {
+          const transcript = event.results[event.results.length - 1][0].transcript;
+          setDescription(prev => prev + (prev ? " " : "") + transcript);
+        };
+        
+        rec.onend = () => {
+          setIsListening(false);
+        };
+        
+        rec.onerror = () => {
+          setIsListening(false);
+        };
+        
+        recognitionRef.current = rec;
+      }
+    }
+  }, []);
+
+  function playAudioBeep(frequency: number, duration: number) {
+    if (typeof window === "undefined") return;
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {
+      console.warn("Audio Beep failed", e);
+    }
+  }
+
+  function toggleListening() {
+    if (!recognitionRef.current) {
+      alert("抱歉，您的浏览器不支持语音输入。");
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+      playAudioBeep(440, 0.12);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+      playAudioBeep(660, 0.12);
+    }
+  }
 
   // 客户端文件读取
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -59,16 +134,42 @@ function NewTaskForm() {
       let text = "";
 
       if (file.type === "application/pdf") {
-        // PDF: 使用浏览器内置的 FileReader 读取为 ArrayBuffer，
-        // 然后做简单的文本提取（提取 PDF 中可读的文本流）
         const arrayBuffer = await file.arrayBuffer();
-        text = extractTextFromPDFBuffer(arrayBuffer);
+        try {
+          const pdfjsLib = await import("pdfjs-dist");
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+          
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(" ");
+            fullText += pageText + "\n";
+          }
+          text = fullText.trim();
+        } catch (pdfErr) {
+          console.error("PDF.js text extraction failed, fallback to basic parser", pdfErr);
+          text = extractTextFromPDFBuffer(arrayBuffer);
+        }
         if (!text.trim()) {
           text = `[PDF文件: ${file.name}，共 ${(file.size / 1024).toFixed(1)}KB]\n\n⚠️ 此 PDF 为扫描件或图片型 PDF，无法直接提取文字。\n请手动输入或粘贴文件中的关键内容，例如：\n- 合同金额和日期\n- 违约条款\n- 不理解的条款原文`;
         }
       } else if (file.type.startsWith("image/")) {
-        // 图片：提示用户手动输入，因为没有 OCR
-        text = `[图片文件: ${file.name}，${(file.size / 1024).toFixed(1)}KB]\n\n⚠️ 图片文件无法自动识别文字。\n请手动输入或粘贴图片中的关键内容，例如：\n- 短信/聊天记录的文字\n- 合同/账单的关键条款\n- 通知的具体内容`;
+        // 图片：使用 Tesseract OCR 提取文字
+        try {
+          const { createWorker } = await import("tesseract.js");
+          const worker = await createWorker("chi_sim");
+          const ret = await worker.recognize(file);
+          await worker.terminate();
+          text = ret.data.text.trim();
+          if (!text) {
+            text = `[图片文件: ${file.name}，${(file.size / 1024).toFixed(1)}KB]\n\n⚠️ 识别结束，但未从图片中提取出清晰的文字。请手动在此输入或粘贴关键内容。`;
+          }
+        } catch (ocrErr) {
+          console.error("OCR extraction failed in tasks/new", ocrErr);
+          text = `[图片文件: ${file.name}，${(file.size / 1024).toFixed(1)}KB]\n\n⚠️ 图片文字自动提取失败。请手动在此输入或粘贴关键内容。`;
+        }
       } else {
         // 纯文本文件直接读取
         text = await file.text();
@@ -114,7 +215,12 @@ function NewTaskForm() {
         taskType,
         (step, pct) => { setAnalyzeProgress(step); setAnalyzeProgressPct(pct); }
       );
-      saveAnalysis(task.id, result);
+      const provider = result._provider || "client-mock";
+      const model = result._model || "client-v2";
+      saveAnalysis(task.id, result, provider, model);
+      if (result._error) {
+        showToast(result._error, "error");
+      }
       router.push(`/tasks/detail?id=${task.id}`);
     } catch (err: any) { setError(err.message || "创建失败"); } finally { setLoading(false); }
   }
@@ -144,7 +250,7 @@ function NewTaskForm() {
       {isDocReview && (
         <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-6">
           <h3 className="mb-2 text-sm font-bold text-blue-700">📎 上传文件</h3>
-          <p className="mb-4 text-xs text-blue-500">支持 txt、pdf、图片（图片需手动输入文字）· 最大 5MB</p>
+          <p className="mb-4 text-xs text-blue-500">支持 txt、pdf、图片（图片可自动提取文字）· 最大 5MB</p>
           <div className="flex items-center gap-3">
             <label className="btn-primary cursor-pointer rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25">
               {fileParsing ? "读取中..." : "选择文件"}
@@ -174,11 +280,42 @@ function NewTaskForm() {
         <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-slate-700">
           {isDocReview ? "文件内容 / 补充说明" : "详细描述"}
         </label>
-        <textarea id="description" rows={8} value={description} onChange={(e) => setDescription(e.target.value)}
-          placeholder={isDocReview
-            ? "上传文件后内容会自动填入这里。你也可以直接粘贴合同、账单、通知的原文...\n\n例如：\n- 合同条款原文\n- 账单明细\n- 通知的具体内容"
-            : "把情况详细说一下，比如：收到什么短信、买了什么东西、遇到了什么问题..."}
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 transition-all resize-none" />
+        <div className="relative">
+          <textarea id="description" rows={8} value={description} onChange={(e) => setDescription(e.target.value)}
+            placeholder={isDocReview
+              ? "上传文件后内容会自动填入这里。你也可以直接粘贴合同、账单、通知的原文...\n\n例如：\n- 合同条款原文\n- 账单明细\n- 通知的具体内容"
+              : "把情况详细说一下，比如：收到什么短信、买了什么东西、遇到了什么问题..."}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pb-14 text-sm placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 transition-all resize-none shadow-sm" />
+          
+          {/* Voice button */}
+          <div className="absolute left-3 bottom-3 select-none">
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`border rounded-xl px-3 py-1.5 text-xs flex items-center gap-1 shadow-sm font-sans font-bold transition-all ${
+                isListening 
+                  ? "bg-rose-50 border-rose-400 text-rose-700 animate-pulse" 
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+              }`}
+              title="语音输入"
+            >
+              {isListening ? (
+                <>
+                  <MicOff className="h-4 w-4 text-rose-600 animate-pulse" />
+                  <div className="flex items-center gap-0.5 h-3 px-0.5 select-none">
+                    <span className="w-0.5 h-2.5 bg-rose-500 rounded animate-wave-bar" style={{ animationDelay: '0.1s' }} />
+                    <span className="w-0.5 h-2.5 bg-rose-500 rounded animate-wave-bar" style={{ animationDelay: '0.3s' }} />
+                    <span className="w-0.5 h-2.5 bg-rose-500 rounded animate-wave-bar" style={{ animationDelay: '0.2s' }} />
+                    <span className="w-0.5 h-2.5 bg-rose-500 rounded animate-wave-bar" style={{ animationDelay: '0.4s' }} />
+                  </div>
+                </>
+              ) : (
+                <Mic className="h-4 w-4 text-blue-600" />
+              )}
+              <span>{isListening ? "录音中..." : "按住说话"}</span>
+            </button>
+          </div>
+        </div>
         {fileContent && (
           <p className="mt-1 text-xs text-slate-400">文件内容已填入描述框，你可以继续编辑或补充</p>
         )}

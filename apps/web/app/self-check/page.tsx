@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 
 interface Question {
@@ -80,13 +81,29 @@ export default function SelfCheckPage() {
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [hasSavedResult, setHasSavedResult] = useState(false);
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
 
   const list = CHECKLISTS[activeList];
   const dangerCount = list.questions.filter((q) => answers[q.id]).length;
   const totalCount = list.questions.length;
 
+  // Cleanup TTS on unmount and set page title
+  useEffect(() => {
+    document.title = "风险自检 - ClearMate";
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   // 加载已保存的结果
   useEffect(() => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setIsPlayingVoice(false);
+    }
+
     const results = loadResults();
     const saved = results[activeList];
     if (saved) {
@@ -100,16 +117,60 @@ export default function SelfCheckPage() {
     }
   }, [activeList]);
 
+  function speakCheckResult() {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      alert("抱歉，您的浏览器不支持语音播放。");
+      return;
+    }
+
+    if (isPlayingVoice) {
+      window.speechSynthesis.cancel();
+      setIsPlayingVoice(false);
+      return;
+    }
+
+    const isElder = typeof window !== "undefined" && localStorage.getItem("cm_elder_mode") === "elder";
+    
+    let textToSpeak = "";
+    if (dangerCount >= 4) {
+      textToSpeak = `自检结果为高度警惕！你可能正在遭遇风险。您勾选了${dangerCount}项风险信号。建议立即：第一，拨打九六一一零反诈中心电话进行咨询；第二，如果已经转账，请立即拨打一一零报警；第三，保留所有聊天记录和转账凭证。请立刻停止任何付款或转账！`;
+    } else if (dangerCount >= 2) {
+      textToSpeak = `自检结果为存在风险信号，需要警惕。您勾选了${dangerCount}项风险信号，建议谨慎处理，通过官方渠道核实后再行动，不要急于做任何决定。`;
+    } else {
+      textToSpeak = `自检结果为有少量风险信号。保持警惕即可，建议通过官方渠道核实相关信息。`;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = "zh-CN";
+    utterance.rate = isElder ? 0.85 : 1.0;
+
+    utterance.onend = () => {
+      setIsPlayingVoice(false);
+    };
+    utterance.onerror = () => {
+      setIsPlayingVoice(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+    setIsPlayingVoice(true);
+  }
+
   function toggleAnswer(id: string) {
     setAnswers((prev) => ({ ...prev, [id]: !prev[id] }));
     setSubmitted(false);
     setHasSavedResult(false);
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(30);
+    }
   }
 
   function handleSubmit() {
     setSubmitted(true);
     setHasSavedResult(true);
     saveResult(activeList, answers, dangerCount, totalCount);
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   }
 
   function resetAll() {
@@ -120,6 +181,9 @@ export default function SelfCheckPage() {
     const results = loadResults();
     results[activeList] = undefined as any;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(results.filter(Boolean)));
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   }
 
   return (
@@ -136,13 +200,19 @@ export default function SelfCheckPage() {
           const savedResults = loadResults();
           const hasSaved = !!savedResults[i];
           return (
-            <button key={i} onClick={() => setActiveList(i)}
-              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all relative ${
+            <button key={i} onClick={() => {
+              setActiveList(i);
+              if (typeof navigator !== "undefined" && navigator.vibrate) {
+                navigator.vibrate(30);
+              }
+            }}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all relative flex items-center gap-2 ${
                 activeList === i
                   ? "btn-primary shadow-lg shadow-brand-500/25"
                   : "bg-white border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-600 shadow-sm"
               }`}>
-              {cl.icon}
+              <span>{cl.icon}</span>
+              <span className="hidden sm:inline">{cl.title.substring(2)}</span>
               {hasSaved && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-green-500" />}
             </button>
           );
@@ -203,10 +273,33 @@ export default function SelfCheckPage() {
           dangerCount >= 2 ? "border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50" :
           "border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50"
         }`}>
+          {/* 顶栏：自检结论标题与语音播放控制 */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4 mb-4" style={{ borderColor: dangerCount >= 4 ? "#fecaca" : dangerCount >= 2 ? "#fed7aa" : "#fef08a" }}>
+            <div>
+              {dangerCount >= 4 ? (
+                <h3 className="text-lg font-bold text-red-700">🚨 高度警惕！你可能正在遭遇风险</h3>
+              ) : dangerCount >= 2 ? (
+                <h3 className="text-lg font-bold text-orange-700">⚠️ 存在风险信号，需要警惕</h3>
+              ) : (
+                <h3 className="text-lg font-bold text-amber-700">⚡ 有少量风险信号</h3>
+              )}
+            </div>
+            <button
+              onClick={speakCheckResult}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all shadow-sm border ${
+                isPlayingVoice 
+                  ? "bg-red-100 text-red-700 border-red-300 hover:bg-red-200/80 active:scale-95" 
+                  : "bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100/80 active:scale-95"
+              }`}
+            >
+              {isPlayingVoice ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              <span>{isPlayingVoice ? "停止朗读" : "听听防骗建议"}</span>
+            </button>
+          </div>
+
           {dangerCount >= 4 ? (
             <>
-              <h3 className="text-lg font-bold text-red-700">🚨 高度警惕！你可能正在遭遇风险</h3>
-              <p className="mt-2 text-sm text-red-600 leading-relaxed">
+              <p className="text-sm text-red-600 leading-relaxed">
                 你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，这表明你正在面临严重风险。请立即停止任何转账/付款操作。
               </p>
               <div className="mt-4 space-y-2">
@@ -219,19 +312,13 @@ export default function SelfCheckPage() {
               </div>
             </>
           ) : dangerCount >= 2 ? (
-            <>
-              <h3 className="text-lg font-bold text-orange-700">⚠️ 存在风险信号，需要警惕</h3>
-              <p className="mt-2 text-sm text-orange-600 leading-relaxed">
-                你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，建议谨慎处理，通过官方渠道核实后再行动。
-              </p>
-            </>
+            <p className="text-sm text-orange-600 leading-relaxed">
+              你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，建议谨慎处理，通过官方渠道核实后再行动。
+            </p>
           ) : (
-            <>
-              <h3 className="text-lg font-bold text-amber-700">⚡ 有少量风险信号</h3>
-              <p className="mt-2 text-sm text-amber-600 leading-relaxed">
-                你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，保持警惕即可，建议通过官方渠道核实。
-              </p>
-            </>
+            <p className="text-sm text-amber-600 leading-relaxed">
+              你勾选了 <span className="font-bold">{dangerCount}</span> 项风险信号，保持警惕即可，建议通过官方渠道核实。
+            </p>
           )}
 
           <div className="mt-6 flex flex-wrap gap-3">

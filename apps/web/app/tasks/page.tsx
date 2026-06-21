@@ -22,13 +22,20 @@ export default function TasksPage() {
   const [sortBy, setSortBy] = useState<"time" | "risk">("time");
   const confirm2 = useConfirm();
 
-  useEffect(() => { setTasks(getUserTasks()); setLoading(false); }, []);
+  useEffect(() => {
+    document.title = "我的维权任务 - ClearMate";
+    setTasks(getUserTasks());
+    setLoading(false);
+  }, []);
 
   async function handleDelete(taskId: string) {
     const ok = await confirm2({ title: "删除任务", message: "确定删除这个任务吗？此操作不可恢复。", confirmText: "删除", danger: true });
     if (!ok) return;
     deleteTask(taskId);
     setTasks(getUserTasks());
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   }
 
   const filteredTasks = tasks.filter((t) => { if (search && !t.title.includes(search) && !t.description.includes(search)) return false; if (filterType && t.task_type !== filterType) return false; if (filterRisk && t.risk_level !== filterRisk) return false; return true; });

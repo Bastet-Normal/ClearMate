@@ -1,6 +1,6 @@
 [project]
 name = "clearmate-api"
-version = "0.1.0"
+version = "0.2.0"
 description = "ClearMate - AI Life Affairs Agent Platform API"
 requires-python = ">=3.11"
 dependencies = [

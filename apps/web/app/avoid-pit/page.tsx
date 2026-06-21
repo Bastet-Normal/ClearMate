@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { searchCategoryRisks, type CategoryRisk } from "@/lib/category-risks";
 import { useToast } from "@/components/ui/toast";
@@ -11,7 +12,59 @@ export default function AvoidPitPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CategoryRisk[]>([]);
   const [searched, setSearched] = useState(false);
+  const [playingTitle, setPlayingTitle] = useState<string | null>(null);
   const { showToast } = useToast();
+
+  // Cleanup TTS on unmount and set page title
+  useEffect(() => {
+    document.title = "消费避坑指南 - ClearMate";
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Cancel audio on search query change
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setPlayingTitle(null);
+    }
+  }, [query]);
+
+  function speakAvoidPit(cat: CategoryRisk) {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      alert("抱歉，您的浏览器不支持语音播放。");
+      return;
+    }
+
+    if (playingTitle === cat.title) {
+      window.speechSynthesis.cancel();
+      setPlayingTitle(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const isElder = typeof window !== "undefined" && localStorage.getItem("cm_elder_mode") === "elder";
+    
+    let textToSpeak = `${cat.title}避坑指南。高频风险点包括：${cat.riskPoints.join("，")}。常见套路有：${cat.commonTricks.join("，")}。建议防骗话术：${cat.counterScripts.join("，")}`;
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = "zh-CN";
+    utterance.rate = isElder ? 0.85 : 1.0;
+
+    utterance.onend = () => {
+      setPlayingTitle(null);
+    };
+    utterance.onerror = () => {
+      setPlayingTitle(null);
+    };
+
+    window.speechSynthesis.speak(utterance);
+    setPlayingTitle(cat.title);
+  }
 
   function handleSearch() {
     if (!query.trim()) return;
@@ -22,6 +75,9 @@ export default function AvoidPitPage() {
   function copyScripts(scripts: string[]) {
     navigator.clipboard.writeText(scripts.map((s, i) => `${i + 1}. ${s}`).join("\n"));
     showToast("话术已复制到剪贴板");
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   }
 
   return (
@@ -67,9 +123,23 @@ export default function AvoidPitPage() {
       {/* Results */}
       {results.map((cat) => (
         <div key={cat.title} className="mb-8 space-y-5">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{cat.icon}</span>
-            <h2 className="text-2xl font-bold text-slate-900">{cat.title}避坑指南</h2>
+          {/* 避坑指南标题与语音朗读控制 */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">{cat.icon}</span>
+              <h2 className="text-2xl font-bold text-slate-900">{cat.title}避坑指南</h2>
+            </div>
+            <button
+              onClick={() => speakAvoidPit(cat)}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all shadow-sm border ${
+                playingTitle === cat.title
+                  ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100/80 active:scale-95" 
+                  : "bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100/80 active:scale-95"
+              }`}
+            >
+              {playingTitle === cat.title ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              <span>{playingTitle === cat.title ? "停止朗读" : "大声读给我听"}</span>
+            </button>
           </div>
 
           {/* Risk Points */}

@@ -18,12 +18,11 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from .base import (
-    AnalysisResult,
     LLMMessage,
     LLMProvider,
     LLMResponse,
+    parse_analysis_result,
 )
-from .base import parse_analysis_result
 
 
 class OpenAIProvider(LLMProvider):

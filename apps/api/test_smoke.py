@@ -5,10 +5,11 @@ import uuid
 
 sys.path.insert(0, ".")
 
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+
+from app.core.database import Base, async_engine
 from app.main import app
-from app.core.database import async_engine, Base
-from app.models import User, Task  # noqa
+from app.models import Task, User  # noqa
 
 
 async def main():

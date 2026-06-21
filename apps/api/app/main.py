@@ -3,13 +3,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
-from app.core.database import async_engine, Base
-from app.models import User, Task, Analysis, File  # noqa: F401 – ensure models registered on Base
-from app.api.v1.auth import router as auth_router
-from app.api.v1.tasks import router as tasks_router
 from app.api.v1.analyses import router as analyses_router
+from app.api.v1.auth import router as auth_router
 from app.api.v1.files import router as files_router
+from app.api.v1.tasks import router as tasks_router
+from app.core.config import settings
+from app.core.database import Base, async_engine
+from app.models import Analysis, File, Task, User  # noqa: F401 – ensure models registered on Base
 
 
 @asynccontextmanager

@@ -42,26 +42,32 @@ export function getAnalysisSteps(taskType: string): AnalysisStep[] {
   return ANALYSIS_STEPS[taskType] || ANALYSIS_STEPS.default;
 }
 
-/**
- * 带进度的模拟分析
- * @returns Promise 在延迟后 resolve，期间通过 onProgress 回调报告进度
- */
 export function analyzeWithProgress<T>(
-  fn: () => T,
+  fn: () => T | Promise<T>,
   taskType: string,
   onProgress: (step: string, progress: number) => void
 ): Promise<T> {
   const steps = getAnalysisSteps(taskType);
   const totalDuration = steps.reduce((sum, s) => sum + s.duration, 0);
 
-  return new Promise((resolve) => {
+  // 立即在后台触发实际的分析请求，并行执行
+  const actualPromise = Promise.resolve().then(fn);
+
+  return new Promise((resolve, reject) => {
     let elapsed = 0;
 
     function runStep(index: number) {
       if (index >= steps.length) {
         onProgress("分析完成", 1);
-        // 短暂停顿后返回结果，让用户看到"完成"状态
-        setTimeout(() => resolve(fn()), 300);
+        // 等待实际的 AI 请求完成
+        actualPromise
+          .then((result) => {
+            // 短暂停顿后返回结果，让用户看到“完成”状态，提升视觉体验
+            setTimeout(() => resolve(result), 300);
+          })
+          .catch((err) => {
+            reject(err);
+          });
         return;
       }
 

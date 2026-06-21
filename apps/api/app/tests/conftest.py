@@ -18,7 +18,7 @@ import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
-from app.core.database import async_engine, Base  # noqa: E402
+from app.core.database import Base, async_engine  # noqa: E402
 from app.main import app  # noqa: E402
 
 

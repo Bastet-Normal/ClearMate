@@ -1,5 +1,6 @@
 """File routes - 上传、查询、删除文件。"""
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File as FastAPIFile
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import File as FastAPIFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user

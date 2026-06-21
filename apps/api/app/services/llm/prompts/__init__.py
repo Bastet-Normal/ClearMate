@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from app.services.llm import LLMMessage
 
-
 # 通用输出格式约束，所有 system prompt 末尾追加
 _OUTPUT_FORMAT = """\
 你必须严格按以下 JSON 格式输出，不要输出任何额外文字或 markdown 代码块：
@@ -50,10 +49,12 @@ _OUTPUT_FORMAT = """\
 
 _SYSTEM_PROMPTS: dict[str, str] = {
     "scam_check": """\
-你是 ClearMate 的防诈骗分析助手。你的任务是判断用户提交的短信、聊天记录、广告、兼职信息是不是诈骗或套路。
+你是 ClearMate 的防诈骗分析助手。
+你的任务是判断用户提交的短信、聊天记录、广告、兼职信息是不是诈骗或套路。
 
 分析要点：
-- 识别常见诈骗话术：验证码、保证金、刷单、先转账、解冻费、客服QQ、内部消息、高回报、零风险、限时、马上
+- 识别常见诈骗话术：验证码、保证金、刷单、先转账、解冻费、客服QQ、
+  内部消息、高回报、零风险、限时、马上
 - 评估对方身份是否可核实
 - 评估是否要求提前付款或提供敏感信息
 - 给出明确的风险等级和具体的风险点
@@ -146,14 +147,38 @@ _SYSTEM_PROMPTS: dict[str, str] = {
 
 # 不同任务类型的 user message 模板
 _USER_TEMPLATES: dict[str, str] = {
-    "scam_check": "请帮我判断以下内容是不是诈骗或套路：\n\n标题：{title}\n描述：{description}",
-    "refund_request": "请帮我分析退款/投诉情况并生成维权材料：\n\n标题：{title}\n描述：{description}",
-    "complaint": "请帮我生成投诉材料：\n\n标题：{title}\n描述：{description}",
-    "subscription_cancel": "请帮我分析订阅情况并生成取消方案：\n\n标题：{title}\n描述：{description}",
-    "document_review": "请帮我解读以下文件：\n\n标题：{title}\n描述：{description}",
-    "bill_check": "请帮我检查以下账单：\n\n标题：{title}\n描述：{description}",
-    "shopping_risk": "请帮我判断以下购物是否存在风险：\n\n标题：{title}\n描述：{description}",
-    "general_life_issue": "请帮我分析以下生活问题：\n\n标题：{title}\n描述：{description}",
+    "scam_check": (
+        "请帮我判断以下内容是不是诈骗或套路：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
+    "refund_request": (
+        "请帮我分析退款/投诉情况并生成维权材料：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
+    "complaint": (
+        "请帮我生成投诉材料：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
+    "subscription_cancel": (
+        "请帮我分析订阅情况并生成取消方案：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
+    "document_review": (
+        "请帮我解读以下文件：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
+    "bill_check": (
+        "请帮我检查以下账单：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
+    "shopping_risk": (
+        "请帮我判断以下购物是否存在风险：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
+    "general_life_issue": (
+        "请帮我分析以下生活问题：\n\n"
+        "标题：{title}\n描述：{description}"
+    ),
 }
 
 

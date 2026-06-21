@@ -17,13 +17,22 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const confirm2 = useConfirm();
 
-  useEffect(() => { if (!isLoggedIn()) { router.push("/login"); return; } setStats(getStats()); setTasks(getUserTasks().slice(0, 5)); setLoading(false); }, [router]);
+  useEffect(() => {
+    document.title = "控制台 - ClearMate";
+    if (!isLoggedIn()) { router.push("/login"); return; }
+    setStats(getStats());
+    setTasks(getUserTasks().slice(0, 5));
+    setLoading(false);
+  }, [router]);
 
   function handleExportData() {
     const data: Record<string, string | null> = {};
     for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key?.startsWith("cm_")) data[key] = localStorage.getItem(key); }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `clearmate-export-${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(url);
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   }
   async function handleClearData() {
     const ok1 = await confirm2({ title: "清空数据", message: "确定清空所有数据？此操作不可恢复！", confirmText: "继续", danger: true });
@@ -31,6 +40,9 @@ export default function DashboardPage() {
     const ok2 = await confirm2({ title: "再次确认", message: "所有任务和分析记录将被永久删除。", confirmText: "确认清空", danger: true });
     if (!ok2) return;
     const keys: string[] = []; for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key?.startsWith("cm_")) keys.push(key); } keys.forEach((k) => localStorage.removeItem(k)); logout(); router.push("/");
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   }
 
   if (loading || !stats) return <div className="mx-auto max-w-6xl px-6 py-12 text-center text-slate-400">加载中...</div>;

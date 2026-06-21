@@ -16,19 +16,31 @@ export function Header() {
     setLoggedIn(isLoggedIn());
     const elderPref = localStorage.getItem("cm_elder_mode");
     const user = getStoredUser();
+    const activeElder = elderPref === "elder" || user?.member_mode === "elder";
+    setIsElder(activeElder);
+
     if (user) {
       setNickname(user.nickname);
-      setIsElder(elderPref === "elder" || user.member_mode === "elder");
-    } else {
-      setIsElder(elderPref === "elder");
     }
+
+    const handleModeChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setIsElder(!!customEvent.detail?.isElder);
+    };
+
+    window.addEventListener("cm:elder-mode-change", handleModeChange);
+
     function handleUnauthorized() {
       setLoggedIn(false);
       setNickname("");
       router.push("/login");
     }
     window.addEventListener("cm:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("cm:unauthorized", handleUnauthorized);
+    
+    return () => {
+      window.removeEventListener("cm:elder-mode-change", handleModeChange);
+      window.removeEventListener("cm:unauthorized", handleUnauthorized);
+    };
   }, [router]);
 
   function handleLogout() {
@@ -40,10 +52,14 @@ export function Header() {
 
   function toggleElderMode() {
     const newMode = isElder ? "normal" : "elder";
-    setIsElder(newMode === "elder");
+    const nextIsElder = newMode === "elder";
+    setIsElder(nextIsElder);
     localStorage.setItem("cm_elder_mode", newMode);
     const user = getStoredUser();
     if (user) setStoredUser({ ...user, member_mode: newMode });
+
+    // Dispatch global event
+    window.dispatchEvent(new CustomEvent("cm:elder-mode-change", { detail: { isElder: nextIsElder } }));
   }
 
   return (
@@ -64,6 +80,7 @@ export function Header() {
               <NavLink href="/dashboard">仪表盘</NavLink>
               <NavLink href="/tasks">我的任务</NavLink>
               <NavLink href="/self-check">风险自检</NavLink>
+              <NavLink href="/settings">设置</NavLink>
               <div className="mx-2 h-5 w-px bg-slate-200" />
               <button onClick={toggleElderMode} className="rounded-lg p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-all" title={isElder ? "标准模式" : "老人模式"}>
                 {isElder ? "🔤" : "👴"}
@@ -97,6 +114,7 @@ export function Header() {
               <MobileLink href="/dashboard" onClick={() => setMenuOpen(false)}>仪表盘</MobileLink>
               <MobileLink href="/tasks" onClick={() => setMenuOpen(false)}>我的任务</MobileLink>
               <MobileLink href="/self-check" onClick={() => setMenuOpen(false)}>风险自检</MobileLink>
+              <MobileLink href="/settings" onClick={() => setMenuOpen(false)}>设置</MobileLink>
               <button onClick={() => { toggleElderMode(); setMenuOpen(false); }} className="block w-full text-left rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
                 {isElder ? "🔤 标准模式" : "👴 老人模式"}
               </button>

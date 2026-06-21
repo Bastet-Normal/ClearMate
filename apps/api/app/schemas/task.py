@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
-    description: str = Field(default="", max_length=5000)
+    description: str = Field(default="", max_length=50000)
     task_type: str = Field(max_length=50)
     deadline_at: datetime | None = None
     reminder_at: datetime | None = None
@@ -15,7 +15,7 @@ class TaskCreate(BaseModel):
 
 class TaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
-    description: str | None = Field(default=None, max_length=5000)
+    description: str | None = Field(default=None, max_length=50000)
     status: str | None = Field(default=None, max_length=50)
     risk_level: str | None = Field(default=None, max_length=20)
     deadline_at: datetime | None = None

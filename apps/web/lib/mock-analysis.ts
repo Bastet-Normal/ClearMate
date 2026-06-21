@@ -27,6 +27,9 @@ export interface AnalysisResult {
   scam_steps?: Array<{ step: string; explanation: string }>;
   similar_cases: Array<{ title: string; pattern: string; advice: string }>;
   disclaimer: string;
+  _provider?: string;
+  _model?: string;
+  _error?: string;
 }
 
 // ============ 风险关键词库 ============

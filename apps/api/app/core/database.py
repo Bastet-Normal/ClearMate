@@ -24,6 +24,13 @@ if _is_sqlite:
 # Async engine for FastAPI
 async_engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
 
+if _is_sqlite:
+    @event.listens_for(async_engine.sync_engine, "connect")
+    def _set_async_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 AsyncSessionLocal = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
 SessionLocal = sessionmaker(engine)

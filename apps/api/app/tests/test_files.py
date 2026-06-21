@@ -1,5 +1,4 @@
 """File upload endpoint tests."""
-import io
 
 import pytest
 

@@ -47,6 +47,21 @@ export function setStoredUser(user: LocalUser | null) {
   else localStorage.removeItem(STORAGE_KEYS.USER);
 }
 
+export interface UserProfile {
+  real_name: string;
+  phone: string;
+}
+
+export function getStoredProfile(): UserProfile {
+  if (typeof window === "undefined") return { real_name: "", phone: "" };
+  const raw = localStorage.getItem("cm_user_profile");
+  return raw ? JSON.parse(raw) : { real_name: "", phone: "" };
+}
+
+export function setStoredProfile(profile: UserProfile) {
+  localStorage.setItem("cm_user_profile", JSON.stringify(profile));
+}
+
 export function isLoggedIn(): boolean {
   return !!getStoredUser() && !!localStorage.getItem(STORAGE_KEYS.TOKEN);
 }
@@ -190,15 +205,20 @@ export function getLatestAnalysis(taskId: string): StoredAnalysis | null {
   return analyses[0] || null;
 }
 
-export function saveAnalysis(taskId: string, result: AnalysisResult): StoredAnalysis {
+export function saveAnalysis(
+  taskId: string,
+  result: AnalysisResult,
+  provider?: string,
+  model?: string
+): StoredAnalysis {
   const analyses = getAnalyses();
   const id = analyses.length > 0 ? Math.max(...analyses.map((a) => a.id)) + 1 : 1;
 
   const analysis: StoredAnalysis = {
     id,
     task_id: taskId,
-    provider: "client-mock",
-    model: "client-v1",
+    provider: provider || "client-mock",
+    model: model || "client-v1",
     risk_level: result.risk_level,
     result_json: result,
     created_at: new Date().toISOString(),
