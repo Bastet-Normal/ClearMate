@@ -1,102 +1,139 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { Plus, Search, SortDesc, Clock } from "lucide-react";
 import { getUserTasks, deleteTask } from "@/lib/local-store";
+import { useRequireAuth } from "@/lib/use-require-auth";
 import { useConfirm } from "@/components/ui/confirm";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TaskItem } from "@/components/ui/task-item";
+import { Select } from "@/components/ui/form";
+import { cn } from "@/lib/utils";
+import { TYPE_LABELS, RISK_ORDER } from "@/lib/meta";
 import type { Task } from "@/types";
 
-const TASK_TYPE_LABELS: Record<string, string> = { scam_check: "🔍 这是不是坑？", refund_request: "💰 退款/投诉", complaint: "💰 投诉", subscription_cancel: "💰 取消订阅", document_review: "📄 看懂文件", bill_check: "📄 账单检查", shopping_risk: "🔍 购物风险", general_life_issue: "📋 其他" };
-const STATUS_LABELS: Record<string, { label: string; color: string }> = { draft: { label: "待处理", color: "bg-slate-100 text-slate-600" }, analyzing: { label: "分析中", color: "bg-brand-50 text-brand-600" }, in_progress: { label: "进行中", color: "bg-brand-50 text-brand-600" }, completed: { label: "已完成", color: "bg-green-50 text-green-700" }, archived: { label: "已归档", color: "bg-slate-100 text-slate-400" } };
-const RISK_COLORS: Record<string, string> = { low: "bg-green-100 text-green-700", medium: "bg-amber-100 text-amber-700", high: "bg-orange-100 text-orange-700", critical: "bg-red-100 text-red-700" };
-const RISK_LABELS: Record<string, string> = { low: "低", medium: "中", high: "高", critical: "极高" };
+const TYPE_OPTIONS = [
+  { value: "", label: "全部类型" },
+  { value: "scam_check", label: TYPE_LABELS.scam_check.label },
+  { value: "refund_request", label: TYPE_LABELS.refund_request.label },
+  { value: "subscription_cancel", label: TYPE_LABELS.subscription_cancel.label },
+  { value: "document_review", label: TYPE_LABELS.document_review.label },
+  { value: "general_life_issue", label: TYPE_LABELS.general_life_issue.label },
+];
+
+const RISK_OPTIONS = [
+  { value: "", label: "全部风险" },
+  { value: "critical", label: "🔴 极高风险" },
+  { value: "high", label: "🟠 高风险" },
+  { value: "medium", label: "🟡 中风险" },
+  { value: "low", label: "🟢 低风险" },
+];
 
 export default function TasksPage() {
-  const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  useRequireAuth();
+  const confirm2 = useConfirm();
+  const [tasks,      setTasks]      = useState<Task[]>([]);
+  const [search,     setSearch]     = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterRisk, setFilterRisk] = useState("");
-  const [sortBy, setSortBy] = useState<"time" | "risk">("time");
-  const confirm2 = useConfirm();
+  const [sortBy,     setSortBy]     = useState<"time" | "risk">("time");
 
-  useEffect(() => {
-    document.title = "我的维权任务 - ClearMate";
-    setTasks(getUserTasks());
-    setLoading(false);
-  }, []);
+  useEffect(() => { setTasks(getUserTasks()); }, []);
 
-  async function handleDelete(taskId: string) {
-    const ok = await confirm2({ title: "删除任务", message: "确定删除这个任务吗？此操作不可恢复。", confirmText: "删除", danger: true });
+  const sortedFiltered = useMemo(() => {
+    let list = tasks.filter(t => {
+      if (search     && !t.title.toLowerCase().includes(search.toLowerCase()) && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterType && t.task_type  !== filterType) return false;
+      if (filterRisk && t.risk_level !== filterRisk) return false;
+      return true;
+    });
+    return [...list].sort((a, b) => {
+      if (sortBy === "risk") {
+        const diff = (RISK_ORDER[a.risk_level ?? "low"] ?? 4) - (RISK_ORDER[b.risk_level ?? "low"] ?? 4);
+        if (diff !== 0) return diff;
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [tasks, search, filterType, filterRisk, sortBy]);
+
+  async function handleDelete(id: string) {
+    const ok = await confirm2({ title: "删除任务", message: "确定删除这个任务？此操作不可恢复。", confirmText: "删除", danger: true });
     if (!ok) return;
-    deleteTask(taskId);
+    deleteTask(id);
     setTasks(getUserTasks());
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
   }
 
-  const filteredTasks = tasks.filter((t) => { if (search && !t.title.includes(search) && !t.description.includes(search)) return false; if (filterType && t.task_type !== filterType) return false; if (filterRisk && t.risk_level !== filterRisk) return false; return true; });
-
-  const RISK_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    if (sortBy === "risk") {
-      const aRisk = RISK_ORDER[a.risk_level ?? "low"] ?? 4;
-      const bRisk = RISK_ORDER[b.risk_level ?? "low"] ?? 4;
-      if (aRisk !== bRisk) return aRisk - bRisk;
-    }
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-
-  if (loading) return <div className="mx-auto max-w-6xl px-6 py-12 text-center text-slate-400">加载中...</div>;
-
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div><h1 className="text-3xl font-bold text-slate-900">我的任务</h1><p className="mt-1 text-sm text-slate-500">共 {filteredTasks.length} 个{filteredTasks.length !== tasks.length ? `（筛选自 ${tasks.length}）` : ""}</p></div>
-        <Link href="/tasks/new" className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25">+ 新建</Link>
-      </div>
+    <div className="min-h-screen page-bg">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8 sm:py-12 space-y-6">
 
-      {tasks.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-3">
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索..." className="flex-1 min-w-[200px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 shadow-sm" />
-          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-brand-400 focus:outline-none shadow-sm">
-            <option value="">全部类型</option><option value="scam_check">🔍 这是不是坑</option><option value="refund_request">💰 退款/投诉</option><option value="document_review">📄 看懂文件</option><option value="general_life_issue">📋 其他</option>
-          </select>
-          <select value={filterRisk} onChange={(e) => setFilterRisk(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-brand-400 focus:outline-none shadow-sm">
-            <option value="">全部风险</option><option value="critical">极高</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option>
-          </select>
-          <button onClick={() => setSortBy(sortBy === "time" ? "risk" : "time")}
-            className={`rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${sortBy === "risk" ? "btn-primary shadow-lg shadow-brand-500/25" : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 shadow-sm"}`}>
-            {sortBy === "risk" ? "⚠️ 按风险排序" : "🕐 按时间排序"}
-          </button>
+        {/* Header */}
+        <div className="flex items-center justify-between animate-fade-in">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-fg-primary">我的任务</h1>
+            <p className="mt-1 text-sm text-fg-muted">
+              共 {sortedFiltered.length} 个{sortedFiltered.length !== tasks.length ? `（筛选自 ${tasks.length}）` : ""}
+            </p>
+          </div>
+          <Link href="/" className="btn btn-md btn-primary">
+            <Plus className="h-4 w-4" /> 新建分析
+          </Link>
         </div>
-      )}
 
-      {tasks.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center"><div className="mb-4 text-5xl">📋</div><h3 className="mb-2 text-lg font-bold text-slate-800">还没有任务</h3><p className="mb-6 text-sm text-slate-500">选择一个入口开始</p><Link href="/" className="btn-primary inline-flex rounded-xl px-6 py-3 text-sm font-semibold shadow-lg shadow-brand-500/25">回到首页</Link></div>
-      ) : (
-        <div className="space-y-3">{sortedTasks.map((task) => { const s = STATUS_LABELS[task.status] || STATUS_LABELS.draft; return (
-          <div key={task.id} className="card-hover group rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <Link href={`/tasks/detail?id=${task.id}`} className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">{TASK_TYPE_LABELS[task.task_type] || task.task_type}</span>
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${s.color}`}>{s.label}</span>
-                  {task.risk_level && <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${RISK_COLORS[task.risk_level]}`}>{RISK_LABELS[task.risk_level] || task.risk_level}风险</span>}
-                </div>
-                <h3 className="text-base font-semibold text-slate-800 group-hover:text-brand-600 transition-colors truncate">{task.title}</h3>
-                {task.description && <p className="mt-1 text-sm text-slate-500 line-clamp-2">{task.description}</p>}
-                <p className="mt-2 text-xs text-slate-400">{new Date(task.created_at).toLocaleString("zh-CN")}</p>
-              </Link>
-              <button onClick={() => handleDelete(task.id)} className="shrink-0 rounded-xl p-2.5 text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all" title="删除">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
+        {/* Filter bar */}
+        {tasks.length > 0 && (
+          <div className="flex flex-wrap gap-2 animate-fade-in">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-faint pointer-events-none z-10" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="搜索任务..."
+                className="input-field pl-9 py-2 text-sm"
+              />
             </div>
-          </div>); })}</div>
-      )}
+
+            <Select value={filterType} onChange={e => setFilterType(e.target.value)} className="py-2 text-sm w-auto">
+              {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+
+            <Select value={filterRisk} onChange={e => setFilterRisk(e.target.value)} className="py-2 text-sm w-auto">
+              {RISK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+
+            <button
+              onClick={() => setSortBy(s => s === "time" ? "risk" : "time")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition-all",
+                sortBy === "risk"
+                  ? "bg-brand-50 dark:bg-brand-950/40 border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-300"
+                  : "bg-surface-0 border-border text-fg-muted hover:bg-surface-2"
+              )}
+            >
+              {sortBy === "risk" ? <SortDesc className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+              {sortBy === "risk" ? "按风险" : "按时间"}
+            </button>
+          </div>
+        )}
+
+        {/* List */}
+        {tasks.length === 0 ? (
+          <div className="card rounded-2xl">
+            <EmptyState preset="no-tasks" action={{ label: "开始第一个分析", href: "/" }} />
+          </div>
+        ) : sortedFiltered.length === 0 ? (
+          <div className="card rounded-2xl">
+            <EmptyState preset="no-results" action={{ label: "清除筛选", onClick: () => { setSearch(""); setFilterType(""); setFilterRisk(""); } }} />
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {sortedFiltered.map((task, i) => (
+              <TaskItem key={task.id} task={task} index={i} onDelete={handleDelete} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

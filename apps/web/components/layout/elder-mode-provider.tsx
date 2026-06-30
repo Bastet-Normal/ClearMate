@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { safeGetItem } from "@/lib/client-storage";
 
 export function ElderModeProvider({ children }: { children: React.ReactNode }) {
   const [isElder, setIsElder] = useState(false);
 
   useEffect(() => {
-    const elderPref = localStorage.getItem("cm_elder_mode");
+    const elderPref = safeGetItem("cm_elder_mode");
     setIsElder(elderPref === "elder");
 
     const handleModeChange = (e: Event) => {

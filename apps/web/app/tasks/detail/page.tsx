@@ -2,545 +2,329 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import {
-  getTask,
-  updateTask,
-  deleteTask,
-  getLatestAnalysis,
-  saveAnalysis,
+  ChevronLeft, Volume2, VolumeX, RefreshCw, Archive,
+  CheckCircle2, Trash2, Pencil, Save, X as XIcon, Loader2
+} from "lucide-react";
+import {
+  getTask, updateTask, deleteTask, getLatestAnalysis, saveAnalysis,
 } from "@/lib/local-store";
-import { unifiedAnalyze } from "@/lib/unified-analyze";
+import { safeGetItem } from "@/lib/client-storage";
+import { useRequireAuth } from "@/lib/use-require-auth";
+import { unifiedAnalyze }    from "@/lib/unified-analyze";
 import { analyzeWithProgress } from "@/lib/analyze-progress";
-import { getStoredUser, getStoredProfile } from "@/lib/local-store";
-import { autoFillTemplate } from "@/lib/template-filler";
-import { useToast } from "@/components/ui/toast";
-import { useConfirm } from "@/components/ui/confirm";
+import { autoFillTemplate }  from "@/lib/template-filler";
+import { useToast }          from "@/components/ui/toast";
+import { useConfirm }        from "@/components/ui/confirm";
+import { AnalysisResultView } from "@/components/features/analysis-result";
+import { ThinkingSteps }     from "@/components/ui/thinking-steps";
+import { EmptyState }        from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { RiskBadge } from "@/components/ui/risk-badge";
+import { cn } from "@/lib/utils";
+import { getTypeMeta, getStatusMeta, getProviderMeta, RISK_META } from "@/lib/meta";
 import type { Task, AnalysisResult } from "@/types";
 
-const TASK_TYPE_LABELS: Record<string, string> = { scam_check: "🔍 这是不是坑？", refund_request: "💰 退款/投诉", complaint: "💰 投诉", subscription_cancel: "💰 取消订阅", document_review: "📄 看懂文件", bill_check: "📄 账单检查", shopping_risk: "🔍 购物风险", general_life_issue: "📋 其他" };
+const RISK_LEVEL_TEXT: Record<string, string> = { critical: "极高风险", high: "高风险", medium: "中风险", low: "低风险" };
+const RISK_SHORT_TEXT: Record<string, string> = { critical: "极高", high: "高", medium: "中", low: "低" };
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  draft: { label: "待处理", color: "bg-slate-100 text-slate-600" },
-  analyzing: { label: "分析中", color: "bg-brand-50 text-brand-600" },
-  in_progress: { label: "进行中", color: "bg-brand-50 text-brand-600" },
-  completed: { label: "已完成", color: "bg-green-50 text-green-700" },
-  archived: { label: "已归档", color: "bg-slate-100 text-slate-400" },
-};
-
-const RISK_STYLES: Record<string, { label: string; bg: string; text: string; border: string; ring: string }> = {
-  low: { label: "低风险", bg: "bg-green-50", text: "text-green-700", border: "border-green-200", ring: "ring-green-500/10" },
-  medium: { label: "中风险", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "ring-amber-500/10" },
-  high: { label: "高风险", bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", ring: "ring-orange-500/10" },
-  critical: { label: "极高风险", bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ring: "ring-red-500/10" },
-};
-
-const RISK_PILL: Record<string, string> = {
-  low: "bg-green-100 text-green-700",
-  medium: "bg-amber-100 text-amber-700",
-  high: "bg-orange-100 text-orange-700",
-  critical: "bg-red-100 text-red-700",
-};
+function formatAnalysisAsText(a: AnalysisResult): string {
+  const lines: string[] = [];
+  lines.push(`【ClearMate 分析报告】\n`);
+  lines.push(`【风险等级】${RISK_LEVEL_TEXT[a.risk_level] ?? a.risk_level}`);
+  lines.push(`【总结】${a.summary}`);
+  if (a.risk_points?.length)       { lines.push("\n【风险点】"); a.risk_points.forEach(p => lines.push(`  - ${p}`)); }
+  if (a.suggested_actions?.length) { lines.push("\n【建议行动】"); a.suggested_actions.forEach((p,i) => lines.push(`  ${i+1}. ${p}`)); }
+  if (a.help_channels?.length)     { lines.push("\n【求助渠道】"); a.help_channels.forEach(c => lines.push(`  - ${c.name}：${c.contact}`)); }
+  if (a.templates?.length)         { lines.push("\n【维权模板】"); a.templates.forEach(t => { lines.push(`\n--- ${t.title} ---`); lines.push(autoFillTemplate(t.content, "")); }); }
+  if (a.disclaimer)                lines.push(`\n⚖️ ${a.disclaimer}`);
+  return lines.join("\n");
+}
 
 function TaskDetailContent() {
-  const router = useRouter();
+  useRequireAuth();
+  const router       = useRouter();
   const searchParams = useSearchParams();
-  const taskId = searchParams.get("id") || "";
+  const taskId       = searchParams.get("id") || "";
 
-  const [task, setTask] = useState<Task | null>(null);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [analysisTime, setAnalysisTime] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeProgress, setAnalyzeProgress] = useState("");
-  const [analyzeProgressPct, setAnalyzeProgressPct] = useState(0);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState("");
-  const [showTemplate, setShowTemplate] = useState(-1);
-  const [editing, setEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDesc, setEditDesc] = useState("");
-  const { showToast } = useToast();
-  const confirm2 = useConfirm();
-  const [elderAlertDismissed, setElderAlertDismissed] = useState(false);
-  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
-  const [analysisProvider, setAnalysisProvider] = useState<string>("");
-  const [analysisModel, setAnalysisModel] = useState<string>("");
+  const [task,         setTask]         = useState<Task | null>(null);
+  const [analysis,     setAnalysis]     = useState<AnalysisResult | null>(null);
+  const [analysisTime, setAnalysisTime] = useState("");
+  const [provider,     setProvider]     = useState("");
+  const [loading,      setLoading]      = useState(true);
+  const [analyzing,    setAnalyzing]    = useState(false);
+  const [progress,     setProgress]     = useState("");
+  const [progressPct,  setProgressPct]  = useState(0);
+  const [error,        setError]        = useState("");
+  const [editing,      setEditing]      = useState(false);
+  const [editTitle,    setEditTitle]    = useState("");
+  const [editDesc,     setEditDesc]     = useState("");
+  const [isPlaying,    setIsPlaying]    = useState(false);
+  const [elderAlert,   setElderAlert]   = useState(false);
+  const [isElder,      setIsElder]      = useState(false);
+  const { toast }  = useToast();
+  const confirm2   = useConfirm();
 
-  // Cleanup TTS on unmount
-  useEffect(() => {
-    return () => {
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
-  function speakReport(result: AnalysisResult) {
-    if (typeof window === "undefined" || !window.speechSynthesis) {
-      alert("抱歉，您的浏览器不支持语音播放。");
-      return;
-    }
-    
-    if (isPlayingVoice) {
-      window.speechSynthesis.cancel();
-      setIsPlayingVoice(false);
-      return;
-    }
-    
-    const isElder = typeof window !== "undefined" && localStorage.getItem("cm_elder_mode") === "elder";
-    const textToSpeak = `诊断书分析结论为：${result.summary}。当前风险评估级别：${
-      result.risk_level === "critical" ? "极高" :
-      result.risk_level === "high" ? "高" :
-      result.risk_level === "medium" ? "中" : "低"
-    }风险。建议行动包括：${result.suggested_actions.join("，")}`;
-    
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = "zh-CN";
-    utterance.rate = isElder ? 0.85 : 1.0;
-    
-    utterance.onend = () => {
-      setIsPlayingVoice(false);
-    };
-    utterance.onerror = () => {
-      setIsPlayingVoice(false);
-    };
-    
-    window.speechSynthesis.speak(utterance);
-    setIsPlayingVoice(true);
-  }
+  useEffect(() => () => { window.speechSynthesis?.cancel(); }, []);
 
   useEffect(() => {
+    // 一次性读取老人模式到 state，避免 render 期读 localStorage
+    const elderPref = safeGetItem("cm_elder_mode") === "elder";
+    setIsElder(elderPref);
+
     if (!taskId) { setError("缺少任务 ID"); setLoading(false); return; }
     const t = getTask(taskId);
-    if (!t) { setError("任务不存在"); setLoading(false); return; }
+    if (!t)     { setError("任务不存在"); setLoading(false); return; }
     setTask(t);
     const latest = getLatestAnalysis(taskId);
-    if (latest) { 
-      setAnalysis(latest.result_json); 
-      setAnalysisTime(latest.created_at); 
-      setAnalysisProvider(latest.provider || "client-mock");
-      setAnalysisModel(latest.model || "client-v1");
+    if (latest) {
+      setAnalysis(latest.result_json);
+      setAnalysisTime(latest.created_at);
+      setProvider(latest.provider || "client-mock");
     }
     setLoading(false);
+    if (elderPref && (t.risk_level === "high" || t.risk_level === "critical")) {
+      setElderAlert(true);
+    }
   }, [taskId]);
 
-  useEffect(() => {
-    if (task) {
-      document.title = `${task.title} - 任务详情 - ClearMate`;
-    } else {
-      document.title = "任务详情 - ClearMate";
-    }
-  }, [task]);
-
-  async function handleAnalyze() {
+  const handleAnalyze = async () => {
     if (!task) return;
-    setAnalyzing(true);
-    setAnalyzeProgress("");
-    setAnalyzeProgressPct(0);
+    setAnalyzing(true); setProgress(""); setProgressPct(0);
     try {
       const result = await analyzeWithProgress(
         () => unifiedAnalyze(task.task_type, task.title, task.description),
         task.task_type,
-        (step, pct) => { setAnalyzeProgress(step); setAnalyzeProgressPct(pct); }
+        (step, pct) => { setProgress(step); setProgressPct(pct); }
       );
-      const provider = result._provider || "client-mock";
-      const model = result._model || "client-v2";
-      saveAnalysis(task.id, result, provider, model);
-      setAnalysis(result);
-      setAnalysisTime(new Date().toISOString());
-      setAnalysisProvider(provider);
-      setAnalysisModel(model);
-      if (result._error) {
-        showToast(result._error, "error");
-      }
+      const prov = result._provider || "client-mock";
+      saveAnalysis(task.id, result, prov, result._model || "v1");
+      setAnalysis(result); setAnalysisTime(new Date().toISOString()); setProvider(prov);
+      if (result._error) toast.error("分析出错", result._error);
       const updated = getTask(taskId);
       if (updated) setTask(updated);
-    } catch (err: any) { showToast(err.message || "分析失败", "error"); }
+    } catch (err: any) { toast.error("分析失败", err.message); }
     finally { setAnalyzing(false); }
-  }
+  };
 
-  async function handleDelete() {
-    const ok = await confirm2({ title: "删除任务", message: "确定删除这个任务吗？此操作不可恢复。", confirmText: "删除", danger: true });
+  const handleDelete = async () => {
+    const ok = await confirm2({ title: "删除任务", message: "确定删除此任务？操作不可恢复。", confirmText: "删除", danger: true });
     if (!ok) return;
-    deleteTask(taskId);
-    router.push("/tasks");
-  }
+    deleteTask(taskId); router.push("/tasks");
+  };
 
-  function handleStatusUpdate(newStatus: Task["status"]) {
-    if (!task) return;
-    const updated = updateTask(taskId, { status: newStatus });
+  const handleStatusUpdate = (s: Task["status"]) => {
+    const updated = updateTask(taskId, { status: s });
     if (updated) setTask(updated);
-  }
+  };
 
-  function copyText(text: string, label: string) {
-    navigator.clipboard.writeText(text);
-    setCopied(label);
-    showToast("已复制到剪贴板");
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-    setTimeout(() => setCopied(""), 2000);
-  }
-
-  // 模板占位符自动填充
-  function fillTemplatePlaceholders(content: string): string {
-    return autoFillTemplate(content, task?.description || "");
-  }
-
-  function startEditing() {
+  const startEdit = () => { if (!task) return; setEditTitle(task.title); setEditDesc(task.description); setEditing(true); };
+  const cancelEdit = () => setEditing(false);
+  const saveEdit  = async () => {
     if (!task) return;
-    setEditTitle(task.title);
-    setEditDesc(task.description);
-    setEditing(true);
-  }
-
-  async function saveEdit() {
-    if (!task) return;
-    const titleChanged = editTitle !== task.title;
-    const descChanged = editDesc !== task.description;
+    const changed = editTitle !== task.title || editDesc !== task.description;
     const updated = updateTask(taskId, { title: editTitle, description: editDesc });
     if (updated) setTask(updated);
     setEditing(false);
-    // 描述或标题变更时提示重新分析
-    if ((titleChanged || descChanged) && analysis) {
-      const ok = await confirm2({ title: "重新分析", message: "内容已变更，是否让 AI 重新分析？", confirmText: "重新分析" });
-      if (ok) {
-        handleAnalyze();
-      }
+    if (changed && analysis) {
+      const ok = await confirm2({ title: "重新分析？", message: "内容已修改，是否让 AI 重新分析？", confirmText: "重新分析" });
+      if (ok) handleAnalyze();
     }
-  }
+  };
 
-  function cancelEdit() {
-    setEditing(false);
-  }
+  const speakReport = () => {
+    if (!analysis) return;
+    if (!window.speechSynthesis) { toast.error("不支持语音播放"); return; }
+    if (isPlaying) { window.speechSynthesis.cancel(); setIsPlaying(false); return; }
+    const text = `分析结论：${analysis.summary}。风险等级：${RISK_SHORT_TEXT[analysis.risk_level]}风险。建议行动：${analysis.suggested_actions.slice(0,3).join("，")}。`;
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = "zh-CN"; utt.rate = isElder ? 0.85 : 1.0;
+    utt.onend = utt.onerror = () => setIsPlaying(false);
+    window.speechSynthesis.speak(utt); setIsPlaying(true);
+  };
 
-  if (loading) return <div className="mx-auto max-w-3xl px-6 py-16 text-center text-slate-400">加载中...</div>;
-  if (error || !task) return (
-    <div className="mx-auto max-w-3xl px-6 py-16 text-center">
-      <div className="mb-4 text-5xl">😕</div>
-      <p className="text-slate-500">{error || "任务不存在"}</p>
-      <Link href="/tasks" className="mt-4 inline-block text-sm font-semibold text-brand-600 hover:text-brand-700">返回任务列表 →</Link>
+  const copyAll = async () => {
+    if (!analysis) return;
+    await navigator.clipboard.writeText(formatAnalysisAsText(analysis));
+    toast.success("已复制全部分析内容");
+  };
+
+  if (loading) return (
+    <div className="min-h-screen page-bg">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 py-8 sm:py-12 space-y-6">
+        <div className="skeleton h-4 w-32" />
+        <div className="card rounded-2xl p-6 space-y-3">
+          <div className="skeleton h-5 w-24" />
+          <div className="skeleton h-7 w-3/4" />
+          <div className="skeleton h-4 w-1/2" />
+        </div>
+      </div>
     </div>
   );
 
-  const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.draft;
-  const riskInfo = task.risk_level ? RISK_STYLES[task.risk_level] : null;
-  const isElderMode = typeof window !== "undefined" && localStorage.getItem("cm_elder_mode") === "elder";
-  const isHighRisk = task.risk_level === "high" || task.risk_level === "critical";
-  const showElderAlert = isElderMode && isHighRisk && !elderAlertDismissed;
+  if (error || !task) return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6">
+      <span className="text-5xl">😕</span>
+      <p className="text-fg-muted">{error || "任务不存在"}</p>
+      <Link href="/tasks" className="btn btn-sm btn-secondary">返回任务列表</Link>
+    </div>
+  );
+
+  const statusInfo  = getStatusMeta(task.status);
+  const typeMeta    = getTypeMeta(task.task_type);
+  const provMeta    = getProviderMeta(provider);
+  const riskMeta    = task.risk_level ? RISK_META[task.risk_level] : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <Link href="/tasks" className="text-sm text-slate-500 hover:text-brand-600 transition-colors">← 返回任务列表</Link>
-
-      {/* 老人模式高风险弹窗 */}
-      {showElderAlert && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-3xl border-4 border-red-400 bg-white p-8 shadow-2xl text-center">
-            <div className="mb-4 text-6xl">🚨</div>
-            <h2 className="mb-3 text-2xl font-bold text-red-700">高风险提醒</h2>
-            <p className="mb-2 text-lg text-red-600 font-semibold">此任务风险等级为<strong>{task.risk_level === "critical" ? "极高" : "高"}风险</strong></p>
-            <p className="mb-6 text-base text-slate-600">请务必谨慎处理，不要轻易转账或提供个人信息。如有疑问，请先咨询家人或拨打 <a href="tel:96110" className="font-bold text-red-700 underline">96110</a>。</p>
-            <button onClick={() => setElderAlertDismissed(true)}
-              className="w-full rounded-xl bg-red-600 px-8 py-4 text-lg font-bold text-white hover:bg-red-700 transition-colors shadow-lg">
+    <div className="min-h-screen page-bg">
+      {/* Elder high-risk modal */}
+      {elderAlert && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border-4 border-red-400 p-8 shadow-2xl text-center animate-scale-in" style={{ background: "rgb(var(--bg-0))" }}>
+            <div className="text-6xl mb-4">🚨</div>
+            <h2 className="text-2xl font-black text-red-700 dark:text-red-400 mb-2">高风险提醒</h2>
+            <p className="text-base text-fg-secondary mb-2">
+              此任务风险等级为 <strong className="text-red-600">{task.risk_level === "critical" ? "极高" : "高"}风险</strong>
+            </p>
+            <p className="text-sm text-fg-muted mb-6 leading-relaxed">
+              请不要轻易转账或提供个人信息。如有疑问，请先询问家人或拨打 <a href="tel:96110" className="font-bold text-red-600 underline">96110</a> 反诈热线。
+            </p>
+            <button onClick={() => setElderAlert(false)} className="btn btn-lg btn-danger w-full">
               我知道了，继续查看
             </button>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="mt-6 mb-8">
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.color}`}>{statusInfo.label}</span>
-          {riskInfo && <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${riskInfo.bg} ${riskInfo.text} ${riskInfo.border}`}>{riskInfo.label}</span>}
-        </div>
-        {editing ? (
-          <div className="space-y-3">
-            <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3 text-2xl font-bold text-slate-900 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10" />
-            <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={6}
-              className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 resize-none" />
-            <div className="flex gap-3">
-              <button onClick={saveEdit} className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25">保存修改</button>
-              <button onClick={cancelEdit} className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">取消</button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-start justify-between gap-4">
-              <h1 className="text-3xl font-bold text-slate-900">{task.title}</h1>
-              <button onClick={startEditing} className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-all shadow-sm" title="编辑">
-                ✏️ 编辑
-              </button>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">{TASK_TYPE_LABELS[task.task_type] || task.task_type} · 创建于 {new Date(task.created_at).toLocaleString("zh-CN")}{task.updated_at !== task.created_at && ` · 更新于 ${new Date(task.updated_at).toLocaleString("zh-CN")}`}</p>
-          </>
-        )}
-      </div>
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 py-8 sm:py-12 space-y-6">
 
-      {/* Description — 非编辑模式显示 */}
-      {!editing && task.description && (
-        <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">描述</h3>
-          <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{task.description}</p>
-        </div>
-      )}
+        {/* Back + breadcrumb */}
+        <Link href="/tasks" className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-brand-600 dark:hover:text-brand-400 transition-colors animate-fade-in">
+          <ChevronLeft className="h-4 w-4" /> 返回任务列表
+        </Link>
 
-      {/* High Risk Warning */}
-      {riskInfo && (task.risk_level === "high" || task.risk_level === "critical") && (
-        <div className={`mb-6 rounded-2xl border-2 p-5 risk-high-alert ${riskInfo.bg} ${riskInfo.border}`}>
-          <p className={`text-sm font-semibold ${riskInfo.text}`}>⚠️ 此任务风险等级较高，请谨慎处理。AI 分析仅供参考，重大决策请咨询专业人士。</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={() => {
-              const text = `【ClearMate 风险提醒】\n任务：${task.title}\n风险等级：${task.risk_level === "critical" ? "极高" : "高"}风险\n${analysis?.summary || "请帮我看看这个是不是坑"}`;
-              if (navigator.share) { 
-                navigator.share({ title: "ClearMate 风险提醒", text }); 
-              } else { 
-                navigator.clipboard.writeText(text); 
-                showToast("已复制，发给家人确认"); 
-                if (typeof navigator !== "undefined" && navigator.vibrate) {
-                  navigator.vibrate(50);
-                }
-              }
-            }} className="rounded-xl bg-white/80 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-white transition-all shadow-sm border border-red-200">
-              👨‍👩‍👧 发给家人确认
-            </button>
-          </div>
-        </div>
-      )}
+        {/* Task header card */}
+        <div className="card rounded-2xl overflow-hidden animate-fade-in-up">
+          {/* Accent bar */}
+          {riskMeta && <div className={cn("h-1 w-full", riskMeta.dot)} />}
 
-      {/* AI Analysis */}
-      {analyzing && (
-        <div className="mb-6 rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 to-indigo-50 p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-            <span className="text-sm font-semibold text-brand-700">{analyzeProgress}</span>
-          </div>
-          <div className="h-2 rounded-full bg-brand-100 overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600 transition-all duration-500" style={{ width: `${Math.round(analyzeProgressPct * 100)}%` }} />
-          </div>
-        </div>
-      )}
-      {!analyzing && analysis ? (
-        <div className="mb-6 space-y-5">
-          {/* 维权诊断书标题与朗读控制 */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-slate-800">🛡️ 维权诊断书</h2>
-              {analysisProvider && (
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  analysisProvider === "custom-gemini" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" :
-                  analysisProvider === "api" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                  "bg-slate-50 text-slate-600 border border-slate-200"
-                }`}>
-                  <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-                  {analysisProvider === "custom-gemini" ? "直连 Gemini AI" :
-                   analysisProvider === "api" ? "智能 AI (后端)" :
-                   "规则引擎 (本地)"}
+          <div className="p-5 sm:p-6">
+            {/* Badges row */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="text-xs text-fg-faint">{typeMeta.label}</span>
+              <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
+              {task.risk_level && <RiskBadge level={task.risk_level} />}
+              {analysis && (
+                <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border", provMeta.color)}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" /> {provMeta.label}
                 </span>
               )}
             </div>
-            <button
-              onClick={() => speakReport(analysis)}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all shadow-sm border ${
-                isPlayingVoice 
-                  ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100/80 active:scale-95" 
-                  : "bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100/80 active:scale-95"
-              }`}
-            >
-              {isPlayingVoice ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              <span>{isPlayingVoice ? "停止朗读" : "朗读结论"}</span>
-            </button>
-          </div>
 
-          {/* 1. 风险判定 — 最醒目 */}
-          <div className={`rounded-2xl border-2 p-5 ${
-            analysis.risk_level === "critical" ? "border-red-300 bg-gradient-to-br from-red-50 to-rose-50" :
-            analysis.risk_level === "high" ? "border-orange-300 bg-gradient-to-br from-orange-50 to-amber-50" :
-            analysis.risk_level === "medium" ? "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50" :
-            "border-green-300 bg-gradient-to-br from-green-50 to-emerald-50"
-          }`}>
-            <div className="flex items-center gap-3 mb-3">
-              <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${
-                RISK_PILL[analysis.risk_level] || "bg-slate-100 text-slate-600"
-              }`}>
-                {{ low: "低风险", medium: "中风险", high: "高风险", critical: "极高风险" }[analysis.risk_level] || analysis.risk_level}
-              </span>
-              <p className="text-sm font-bold text-slate-900 leading-relaxed">{analysis.summary}</p>
-            </div>
-            {analysis.risk_points?.length > 0 && <Section title="⚠️ 风险点" items={analysis.risk_points} color="text-orange-600" borderColor="border-orange-200" />}
-          </div>
-
-          {/* 2. 行动指南 — 第二优先 */}
-          <div className="rounded-2xl border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-5">
-            <h3 className="mb-3 text-sm font-bold text-green-800">🎯 你现在应该做什么</h3>
-            {analysis.evidence_checklist?.length > 0 && <Section title="📸 取证清单" items={analysis.evidence_checklist} color="text-blue-600" borderColor="border-blue-200" />}
-            {analysis.counter_scripts?.length > 0 && <Section title="💬 反套路话术" items={analysis.counter_scripts} color="text-green-700" borderColor="border-green-300" />}
-            {analysis.suggested_actions?.length > 0 && <Section title="✅ 建议行动" items={analysis.suggested_actions} color="text-green-600" borderColor="border-green-200" />}
-            {analysis.help_channels?.length > 0 && (
-              <div className="mb-3">
-                <h4 className="mb-2 text-xs font-bold text-brand-600">📞 求助渠道</h4>
-                <div className="flex flex-wrap gap-2">
-                  {analysis.help_channels.map((ch, i) => (
-                    <span key={i} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs border border-brand-100 shadow-sm">
-                      <span className="font-semibold text-brand-700">{ch.name}</span>
-                      {/^\d+$/.test(ch.contact) ? (
-                        <a href={`tel:${ch.contact}`} className="font-mono font-bold text-brand-600 hover:underline">{ch.contact}</a>
-                      ) : (
-                        <span className="font-mono font-bold text-brand-600">{ch.contact}</span>
-                      )}
-                    </span>
-                  ))}
+            {/* Title + edit */}
+            {editing ? (
+              <div className="space-y-3">
+                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className="input-field text-xl font-bold" />
+                <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={5} className="input-field resize-none text-sm" />
+                <div className="flex gap-2">
+                  <button onClick={saveEdit}   className="btn btn-sm btn-primary"><Save className="h-3.5 w-3.5" /> 保存</button>
+                  <button onClick={cancelEdit} className="btn btn-sm btn-ghost"><XIcon className="h-3.5 w-3.5" /> 取消</button>
                 </div>
               </div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-4">
+                  <h1 className="text-xl sm:text-2xl font-black text-fg-primary leading-snug">{task.title}</h1>
+                  <button onClick={startEdit} className="btn btn-sm btn-ghost shrink-0 text-fg-faint">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-fg-faint">
+                  创建于 {new Date(task.created_at).toLocaleString("zh-CN")}
+                  {task.updated_at !== task.created_at && ` · 更新于 ${new Date(task.updated_at).toLocaleString("zh-CN")}`}
+                </p>
+                {task.description && (
+                  <p className="mt-3 text-sm text-fg-muted leading-relaxed whitespace-pre-wrap line-clamp-4">{task.description}</p>
+                )}
+              </>
             )}
           </div>
+        </div>
 
-          {/* 3. 详情 — 可折叠 */}
-          <details className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <summary className="cursor-pointer rounded-t-2xl p-5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-              📋 查看详细分析
-            </summary>
-            <div className="px-5 pb-5 space-y-3 border-t border-slate-100 pt-4">
-              {analysis.key_facts?.length > 0 && <Section title="📋 关键事实" items={analysis.key_facts} color="text-blue-600" borderColor="border-blue-200" />}
-              {analysis.questions_to_verify?.length > 0 && <Section title="❓ 待核实事项" items={analysis.questions_to_verify} color="text-amber-600" borderColor="border-amber-200" />}
-              {analysis.assumptions?.length > 0 && <Section title="💡 分析假设" items={analysis.assumptions} color="text-slate-500" borderColor="border-slate-200" />}
+        {/* Analyze progress */}
+        {analyzing && (
+          <div className="card rounded-2xl p-5 animate-fade-in">
+            <ThinkingSteps currentStep={progress} progress={progressPct} isElder={isElder} />
+          </div>
+        )}
 
-              {analysis.similar_cases?.length > 0 && (
-                <div className="mb-3">
-                  <h4 className="mb-2 text-xs font-semibold text-violet-600">📚 相似案例</h4>
-                  <div className="space-y-2">
-                    {analysis.similar_cases.map((c, i) => (
-                      <div key={i} className="rounded-xl bg-violet-50 p-3 border border-violet-100">
-                        <p className="text-sm font-semibold text-violet-700">{c.title}</p>
-                        <p className="mt-1 text-xs text-violet-600 leading-relaxed">{c.pattern}</p>
-                        <p className="mt-1 text-xs text-violet-500 font-medium">💡 {c.advice}</p>
-                        {c.steps && c.steps.length > 0 && (
-                          <div className="mt-2 pl-3 border-l-2 border-violet-200">
-                            <p className="text-xs font-semibold text-violet-600 mb-1">套路步骤：</p>
-                            {c.steps.map((s, si) => (
-                              <p key={si} className="text-xs text-violet-500 leading-relaxed">{s}</p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {analysis.disclaimer && (
-                <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
-                  <p className="text-xs text-slate-400">{analysis.disclaimer}</p>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3">
-                {analysisTime && <span className="text-xs text-slate-400">分析于 {new Date(analysisTime).toLocaleString("zh-CN")}</span>}
-                <button onClick={() => copyText(formatAnalysisAsText(analysis), "all")}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-                  {copied === "all" ? "✓ 已复制" : "📋 复制全部"}
+        {/* Analysis section */}
+        {!analyzing && analysis ? (
+          <div className="space-y-4 animate-fade-in">
+            {/* Header bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-fg-primary flex items-center gap-2">
+                🛡️ 维权诊断书
+                {analysisTime && (
+                  <span className="text-xs font-normal text-fg-faint">
+                    · {new Date(analysisTime).toLocaleString("zh-CN", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })}
+                  </span>
+                )}
+              </h2>
+              <div className="flex items-center gap-2">
+                <button onClick={speakReport} className={cn("btn btn-sm", isPlaying ? "btn-danger" : "btn-secondary")}>
+                  {isPlaying ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                  {isPlaying ? "停止朗读" : "朗读结论"}
+                </button>
+                <button onClick={handleAnalyze} className="btn btn-sm btn-ghost text-fg-muted">
+                  <RefreshCw className="h-3.5 w-3.5" /> 重新分析
                 </button>
               </div>
             </div>
-          </details>
 
-          <div className="mt-5">
-              <button onClick={handleAnalyze} disabled={analyzing}
-                className="btn-primary rounded-xl px-5 py-2.5 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
-                {analyzing ? "分析中..." : "🔄 重新分析"}
+            <AnalysisResultView result={analysis} isElder={isElder} />
+          </div>
+        ) : !analyzing ? (
+          <div className="card rounded-2xl animate-fade-in">
+            <EmptyState
+              icon={<span className="text-4xl">🤖</span>}
+              title="还没有 AI 分析结果"
+              description="点击下方按钮，让 AI 为您分析此任务，生成风险评估和行动方案。"
+              action={{ label: "立即 AI 分析", onClick: handleAnalyze }}
+            />
+          </div>
+        ) : null}
+
+        {/* Status actions */}
+        <div className="card rounded-2xl p-5 animate-fade-in">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-fg-faint mb-4">任务操作</h3>
+          <div className="flex flex-wrap gap-2">
+            {task.status !== "completed" && task.status !== "archived" && (
+              <button onClick={() => handleStatusUpdate("completed")} className="btn btn-sm btn-secondary text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+                <CheckCircle2 className="h-3.5 w-3.5" /> 标记完成
               </button>
-            </div>
-
-          {/* Scam Step Breakdown */}
-          {analysis.scam_steps && analysis.scam_steps.length > 0 && (
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-sm font-bold text-slate-800">🎭 诈骗步骤拆解</h3>
-              <div className="space-y-4">
-                {analysis.scam_steps.map((step, i) => (
-                  <div key={i} className="relative pl-8">
-                    <div className="absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white shadow">
-                      {i + 1}
-                    </div>
-                    <div className="rounded-xl bg-slate-50 p-4 border border-slate-100">
-                      <p className="text-sm font-semibold text-slate-800">{step.step}</p>
-                      <p className="mt-1 text-xs text-slate-500">{step.explanation}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Templates */}
-          {analysis.templates?.length > 0 && (
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-sm font-bold text-slate-800">📝 维权模板</h3>
-              <div className="space-y-3">
-                {analysis.templates.map((tpl, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200 overflow-hidden">
-                    <button onClick={() => setShowTemplate(showTemplate === i ? -1 : i)}
-                      className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-50 transition-colors">
-                      <span className="text-sm font-semibold text-slate-700">{tpl.title}</span>
-                      <svg className={`h-4 w-4 text-slate-400 transition-transform ${showTemplate === i ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {showTemplate === i && (
-                      <div className="border-t border-slate-100 bg-slate-50 p-4">
-                        <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed">{fillTemplatePlaceholders(tpl.content)}</pre>
-                        <button onClick={() => copyText(fillTemplatePlaceholders(tpl.content), `tpl-${i}`)}
-                          className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white transition-all shadow-sm">
-                          {copied === `tpl-${i}` ? "✓ 已复制" : "📋 复制模板"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="mb-6 rounded-2xl border-2 border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
-          <div className="mb-4 text-5xl">🤖</div>
-          <p className="mb-5 text-sm text-slate-500">还没有 AI 分析结果</p>
-          <button onClick={handleAnalyze} disabled={analyzing}
-            className="btn-primary rounded-xl px-6 py-3 text-sm font-semibold shadow-lg shadow-brand-500/25 disabled:opacity-50">
-            {analyzing ? "分析中..." : "让 AI 分析"}
-          </button>
-        </div>
-      )}
-
-      {/* Status Actions */}
-      <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">操作</h3>
-        <div className="flex flex-wrap gap-3">
-          {task.status !== "completed" && task.status !== "archived" && (
-            <button onClick={() => handleStatusUpdate("completed")}
-              className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-lg shadow-green-500/25">
-              ✅ 标记完成
+            )}
+            {task.status === "completed" && (
+              <button onClick={() => handleStatusUpdate("archived")} className="btn btn-sm btn-ghost text-fg-muted">
+                <Archive className="h-3.5 w-3.5" /> 归档
+              </button>
+            )}
+            {analysis && (
+              <button onClick={copyAll} className="btn btn-sm btn-ghost text-fg-muted">
+                复制完整报告
+              </button>
+            )}
+            <button onClick={handleDelete} className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 ml-auto">
+              <Trash2 className="h-3.5 w-3.5" /> 删除任务
             </button>
-          )}
-          {task.status === "completed" && (
-            <button onClick={() => handleStatusUpdate("archived")}
-              className="rounded-xl bg-slate-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-600 transition-colors shadow-sm">
-              📦 归档
-            </button>
-          )}
-          <button onClick={handleDelete}
-            className="rounded-xl border border-red-200 bg-white px-5 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 transition-all shadow-sm">
-            🗑️ 删除任务
-          </button>
+          </div>
         </div>
-      </div>
 
-      {/* Disclaimer */}
-      <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-        <p className="text-xs text-slate-400">⚖️ 本工具 AI 分析结果仅供参考，不构成法律、金融或医疗建议。涉及重大决策请咨询专业人士。</p>
+        {/* Disclaimer */}
+        <p className="text-xs text-fg-faint text-center pb-4">
+          ⚖️ AI 分析仅供参考，不构成法律或专业建议。如涉重大决策，请咨询专业人士。
+        </p>
       </div>
     </div>
   );
@@ -548,39 +332,12 @@ function TaskDetailContent() {
 
 export default function TaskDetailPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-3xl px-6 py-16 text-center text-slate-400">加载中...</div>}>
+    <Suspense fallback={
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+      </div>
+    }>
       <TaskDetailContent />
     </Suspense>
   );
-}
-
-function Section({ title, items, color, borderColor }: { title: string; items: string[]; color: string; borderColor: string }) {
-  return (
-    <div className="mb-4">
-      <h4 className={`mb-2 text-xs font-bold ${color}`}>{title}</h4>
-      <ul className="space-y-1.5">
-        {items.map((p, i) => (
-          <li key={i} className="text-sm text-slate-600 pl-4 border-l-2 py-0.5 leading-relaxed" style={{ borderColor: borderColor.includes("orange") ? "#fed7aa" : borderColor.includes("blue") ? "#bfdbfe" : borderColor.includes("green") ? "#bbf7d0" : "#fde68a" }}>
-            {p}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function formatAnalysisAsText(a: AnalysisResult): string {
-  const lines: string[] = [];
-  lines.push(`【风险等级】${a.risk_level}`);
-  lines.push(`【总结】${a.summary}`);
-  if (a.risk_points?.length) { lines.push("【风险点】"); a.risk_points.forEach((p) => lines.push(`  - ${p}`)); }
-  if (a.key_facts?.length) { lines.push("【关键事实】"); a.key_facts.forEach((p) => lines.push(`  - ${p}`)); }
-  if (a.assumptions?.length) { lines.push("【分析假设】"); a.assumptions.forEach((p) => lines.push(`  - ${p}`)); }
-  if (a.suggested_actions?.length) { lines.push("【建议行动】"); a.suggested_actions.forEach((p) => lines.push(`  - ${p}`)); }
-  if (a.questions_to_verify?.length) { lines.push("【待核实事项】"); a.questions_to_verify.forEach((p) => lines.push(`  - ${p}`)); }
-  if (a.similar_cases?.length) { lines.push("【相似案例】"); a.similar_cases.forEach((c) => { lines.push(`  - ${c.title}: ${c.pattern}`); lines.push(`    建议: ${c.advice}`); }); }
-  if (a.help_channels?.length) { lines.push("【求助渠道】"); a.help_channels.forEach((c) => lines.push(`  - ${c.name}：${c.contact}（${c.desc}）`)); }
-  if (a.templates?.length) { lines.push("【维权模板】"); a.templates.forEach((t) => { lines.push(`  --- ${t.title} ---`); lines.push(t.content); }); }
-  if (a.disclaimer) lines.push(`【免责声明】${a.disclaimer}`);
-  return lines.join("\n");
 }

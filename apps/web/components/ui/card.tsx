@@ -1,14 +1,20 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Card — 跟随主题变量（暖灰），不再硬编码白底。
+ * 使用 .card / .card-elevated / .card-surface 等 CSS 类。
+ */
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLDivElement> & { elevated?: boolean; surface?: boolean; hover?: boolean }
+>(({ className, elevated, surface, hover, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
-      "rounded-xl border border-slate-200 bg-white shadow-sm",
+      surface ? "card-surface" : "card",
+      elevated && "card-elevated",
+      hover && "card-hover",
       className
     )}
     {...props}
@@ -20,11 +26,7 @@ const CardHeader = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex flex-col space-y-1.5 p-6", className)}
-    {...props}
-  />
+  <div ref={ref} className={cn("flex flex-col space-y-1.5 p-5 sm:p-6", className)} {...props} />
 ));
 CardHeader.displayName = "CardHeader";
 
@@ -34,7 +36,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h3
     ref={ref}
-    className={cn("text-xl font-semibold leading-none tracking-tight", className)}
+    className={cn("text-lg font-bold leading-tight tracking-tight text-fg-primary", className)}
     {...props}
   />
 ));
@@ -46,7 +48,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-slate-500", className)}
+    className={cn("text-sm text-fg-muted", className)}
     {...props}
   />
 ));
@@ -56,7 +58,7 @@ const CardContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+  <div ref={ref} className={cn("p-5 sm:p-6 pt-0", className)} {...props} />
 ));
 CardContent.displayName = "CardContent";
 

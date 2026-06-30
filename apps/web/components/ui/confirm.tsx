@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, createContext, useContext, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 interface ConfirmOptions {
   title: string;
@@ -45,18 +46,15 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
       {options && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="mb-2 text-lg font-bold text-slate-900">{options.title}</h3>
-            <p className="mb-6 text-sm text-slate-600 leading-relaxed">{options.message}</p>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-scale-in" style={{ background: "rgb(var(--bg-0))" }}>
+            <h3 className="mb-2 text-lg font-bold text-fg-primary">{options.title}</h3>
+            <p className="mb-6 text-sm text-fg-muted leading-relaxed">{options.message}</p>
             <div className="flex gap-3">
-              <button onClick={handleCancel} className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all">
+              <button onClick={handleCancel} className="flex-1 btn btn-md btn-secondary">
                 {options.cancelText || "取消"}
               </button>
-              <button onClick={handleConfirm}
-                className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all shadow-lg ${
-                  options.danger ? "bg-red-600 hover:bg-red-700 shadow-red-500/25" : "btn-primary shadow-brand-500/25"
-                }`}>
+              <button onClick={handleConfirm} className={cn("flex-1 btn btn-md", options.danger ? "btn-danger" : "btn-primary")}>
                 {options.confirmText || "确定"}
               </button>
             </div>

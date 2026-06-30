@@ -2,11 +2,50 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getLLMMode, setLLMMode, getApiUrl, setApiUrl, type LLMMode } from "@/lib/llm-mode";
+import {
+  ChevronLeft, User, Phone, Shield, Cpu, Database,
+  Upload, Download, CheckCircle2, AlertCircle, Save, Loader2,
+  LogIn, LogOut, KeyRound, Sparkles
+} from "lucide-react";
+import {
+  getLLMMode, setLLMMode, getApiUrl, setApiUrl,
+  getGeminiApiKey, setGeminiApiKey, type LLMMode,
+} from "@/lib/llm-mode";
 import { checkApiAvailable } from "@/lib/unified-analyze";
+import {
+  GOOGLE_CLOUD_PROJECT_ID, isOAuthConfigured, getOAuthStatus, loginWithGoogle, logoutGoogle, type OAuthStatus,
+} from "@/lib/gemini-oauth";
 import { useToast } from "@/components/ui/toast";
 import { getStoredProfile, setStoredProfile } from "@/lib/local-store";
+import { exportClearMateData, importClearMateData } from "@/lib/client-storage";
+import { FormField, Input } from "@/components/ui/form";
+import { cn } from "@/lib/utils";
 
+const SECTION_ICONS = {
+  profile: "bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300",
+  data:    "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300",
+  ai:      "bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300",
+  api:     "bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300",
+};
+
+function SectionHeader({ icon: Icon, tone, title, desc }: {
+  icon: React.ComponentType<{ className?: string }>;
+  tone: string; title: string; desc: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl", tone)}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div>
+        <h2 className="text-base font-bold text-fg-primary">{title}</h2>
+        <p className="text-xs text-fg-faint">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+const oauthReady = isOAuthConfigured();
 export default function SettingsPage() {
   const [mode, setMode] = useState<LLMMode>("local");
   const [apiUrl, setApiUrlState] = useState("");
@@ -14,33 +53,72 @@ export default function SettingsPage() {
   const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [realName, setRealName] = useState("");
   const [phone, setPhone] = useState("");
-  const { showToast } = useToast();
+  const [geminiKey, setGeminiKey] = useState("");
+  const [oauth, setOauth] = useState<OAuthStatus>({ active: false });
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     document.title = "系统设置 - ClearMate";
     setMode(getLLMMode());
     setApiUrlState(getApiUrl());
+    setGeminiKey(getGeminiApiKey());
+    setOauth(getOAuthStatus());
     const profile = getStoredProfile();
     setRealName(profile.real_name);
     setPhone(profile.phone);
   }, []);
 
   async function handleModeChange(newMode: LLMMode) {
+    if (newMode === "gemini-oauth" && !oauthReady) {
+      toast.error("暂不可用", "尚未配置 Google OAuth，请改用 API Key 或本地引擎");
+      return;
+    }
     setMode(newMode);
     setLLMMode(newMode);
+
     if (newMode === "api") {
       setChecking(true);
       const ok = await checkApiAvailable();
       setApiOk(ok);
       setChecking(false);
-      if (!ok) {
-        showToast("后端不可用，请确认 API 地址和后端服务", "error");
-      } else {
-        showToast("后端连接成功，已切换到真实 AI 模式");
-      }
+      if (!ok) toast.error("切换失败", "后端服务不可用，已自动回退本地引擎");
+      else toast.success("已连接", "已连接至后端真实 AI 引擎");
+    } else if (newMode === "gemini-oauth") {
+      if (!oauth.active) toast.info("请完成授权", "点击下方「连接 Google」后再分析；token 过期后需重新连接");
+      else toast.success("已切换", "使用 Google OAuth 直连 Gemini（实验）");
+    } else if (newMode === "gemini-key") {
+      if (!geminiKey.trim()) toast.info("请填写 Key", "在下方填入 Gemini API Key 后保存");
+      else toast.success("已切换", "使用 API Key 直连 Gemini");
     } else {
-      showToast("已切换到本地分析模式");
+      toast.success("已切换到本地离线引擎");
     }
+  }
+
+  async function handleGoogleLogin() {
+    setOauthLoading(true);
+    try {
+      await loginWithGoogle();
+      const st = getOAuthStatus();
+      setOauth(st);
+      toast.success("授权成功", st.email ? `已连接：${st.email}` : "已连接 Google 账号");
+    } catch (err: any) {
+      toast.error("授权失败", err.message || "Google 授权未完成");
+    } finally {
+      setOauthLoading(false);
+    }
+  }
+
+  function handleGoogleLogout() {
+    logoutGoogle();
+    setOauth(getOAuthStatus());
+    if (mode === "gemini-oauth") { setMode("local"); setLLMMode("local"); }
+    toast.success("已断开 Google 授权");
+  }
+
+  function handleSaveApiKey() {
+    setGeminiApiKey(geminiKey.trim());
+    toast.success("API Key 已保存", geminiKey.trim() ? "下次分析将直连 Gemini" : "已清除 Key");
   }
 
   async function handleCheckApi() {
@@ -49,31 +127,24 @@ export default function SettingsPage() {
     const ok = await checkApiAvailable();
     setApiOk(ok);
     setChecking(false);
-    if (ok) showToast("后端连接成功 ✅");
-    else showToast("后端不可用 ❌", "error");
+    if (ok) toast.success("连接成功", "后端接口响应正常 ✅");
+    else toast.error("连接失败", "无法访问后端接口 ❌");
   }
 
   function handleSaveApiUrl() {
     setApiUrl(apiUrl);
-    showToast("API 地址已保存");
+    toast.success("后端地址已保存");
   }
 
   function handleSaveProfile() {
     setStoredProfile({ real_name: realName, phone });
-    showToast("预填资料已成功保存！");
+    toast.success("预填资料已保存");
   }
 
   function handleExportData() {
     try {
-      const data: Record<string, string | null> = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith("cm_")) {
-          data[key] = localStorage.getItem(key);
-        }
-      }
-      const jsonString = JSON.stringify(data, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
+      const data = exportClearMateData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
@@ -83,197 +154,221 @@ export default function SettingsPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      showToast("备份文件已成功导出！");
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate(50);
-      }
+      toast.success("导出成功", "备份数据已保存至本地文件");
     } catch (err: any) {
-      showToast("导出备份失败: " + err.message, "error");
+      toast.error("导出失败", err.message);
     }
   }
 
   function handleImportData(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const resultText = event.target?.result as string;
-        const parsed = JSON.parse(resultText);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          throw new Error("格式无效，备份文件必须是 JSON 对象");
-        }
-        const keys = Object.keys(parsed);
-        const cmKeys = keys.filter(k => k.startsWith("cm_"));
-        if (cmKeys.length === 0) {
-          throw new Error("文件中未包含 ClearMate 的有效数据");
-        }
-        cmKeys.forEach(key => {
-          const val = parsed[key];
-          if (val !== null && val !== undefined) {
-            localStorage.setItem(key, val);
-          }
-        });
-        showToast("备份已成功导入，正在重新加载页面...");
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
-          navigator.vibrate(50);
-        }
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        const parsed = JSON.parse(event.target?.result as string);
+        const count = importClearMateData(parsed);
+        toast.success("导入成功", `已恢复 ${count} 项数据，正在重新加载...`);
+        setTimeout(() => window.location.reload(), 1200);
       } catch (err: any) {
-        showToast("导入失败: " + err.message, "error");
+        toast.error("导入失败", err.message);
       }
     };
     reader.readAsText(file);
     e.target.value = "";
   }
 
+  /* 引擎选项卡片 */
+  const ENGINE_OPTIONS: {
+    value: LLMMode; title: string; desc: string; badge?: string;
+  }[] = [
+    { value: "local",       title: "本地离线引擎", desc: "无需 Key 与后端，浏览器内规则引擎秒级诊断，绝对隐私", badge: "默认" },
+    { value: "gemini-oauth",title: "Gemini · Google OAuth", desc: "实验通道：用短期 Google 授权令牌直连，失败会回退本地引擎", badge: "实验" },
+    { value: "gemini-key",  title: "Gemini · API Key", desc: "自填 Gemini API Key，浏览器直连，Key 仅存本地", badge: "" },
+    { value: "api",         title: "后端 FastAPI", desc: "连接自建后端，由后端代理真实大模型", badge: "" },
+  ];
+
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <Link href="/" className="text-sm text-slate-500 hover:text-brand-600 transition-colors">← 返回首页</Link>
-      <div className="mt-6 mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">⚙️ 设置</h1>
-        <p className="mt-2 text-sm text-slate-500">配置 AI 分析模式和您的申诉人档案信息</p>
-      </div>
+    <div className="min-h-screen page-bg">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 py-8 sm:py-12 space-y-6">
 
-      {/* User Profile Info Card */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm mb-6">
-        <h2 className="mb-2 text-lg font-bold text-slate-900">✍️ 申诉预填资料</h2>
-        <p className="text-xs text-slate-500 mb-4">在此设置您的基本资料，智能诊断后生成的维权申诉信模板将自动填入这些信息，省去手动填写的麻烦。</p>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">您的姓名 / 称呼</label>
-            <input 
-              type="text" 
-              value={realName} 
-              onChange={(e) => setRealName(e.target.value)} 
-              placeholder="例如：张三（可选，用于申诉人署名）"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 transition-all"
-            />
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-brand-600 dark:hover:text-brand-400 transition-colors animate-fade-in">
+          <ChevronLeft className="h-4 w-4" /> 返回首页
+        </Link>
+
+        <div className="animate-fade-in">
+          <h1 className="text-2xl sm:text-3xl font-black text-fg-primary">⚙️ 设置</h1>
+          <p className="mt-1 text-sm text-fg-muted">配置 AI 分析引擎和个人档案</p>
+        </div>
+
+        <div className="grid gap-6 stagger-children">
+
+          {/* 1. AI Engine */}
+          <div className="card rounded-2xl p-5 sm:p-6 space-y-4 animate-stagger-in">
+            <SectionHeader icon={Cpu} tone={SECTION_ICONS.ai} title="AI 分析引擎" desc="选择由谁来分析您的遭遇" />
+
+            <div className="grid gap-3">
+              {ENGINE_OPTIONS.map((opt) => {
+                const active = mode === opt.value;
+                return (
+                  <label key={opt.value} className={cn(
+                    "flex items-start gap-3 cursor-pointer rounded-xl p-4 transition-all border-2",
+                    active
+                      ? "bg-brand-50/50 dark:bg-brand-950/20 border-brand-300 dark:border-brand-800"
+                      : "bg-surface-0 border-border hover:border-border-strong"
+                  )}>
+                    <input
+                      type="radio"
+                      name="llm-mode"
+                      checked={active}
+                      onChange={() => handleModeChange(opt.value)}
+                      className="mt-1 h-4 w-4 text-brand-600 focus:ring-brand-500"
+                    />
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-fg-primary">{opt.title}</p>
+                        {opt.badge && (
+                          <span className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                            opt.badge === "实验"
+                              ? "bg-violet-500 text-white"
+                              : "bg-surface-2 text-fg-muted"
+                          )}>{opt.badge}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-fg-muted leading-relaxed">{opt.desc}</p>
+
+                      {/* Gemini OAuth 内联 */}
+                      {opt.value === "gemini-oauth" && (
+                        <div className="mt-3 rounded-lg bg-surface-1 border border-border p-3 space-y-2">
+                          {!oauthReady ? (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              尚未配置 Google OAuth（缺少 NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID）
+                            </p>
+                          ) : oauth.active ? (
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-medium">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                已连接{oauth.email ? `：${oauth.email}` : ""}
+                              </span>
+                              <button type="button" onClick={handleGoogleLogout} className="btn btn-sm btn-ghost text-fg-muted">
+                                <LogOut className="h-3.5 w-3.5" /> 断开
+                              </button>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={handleGoogleLogin} disabled={oauthLoading} className="btn btn-sm btn-primary">
+                              {oauthLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
+                              连接 Google
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Gemini Key 内联 */}
+                      {opt.value === "gemini-key" && (
+                        <div className="mt-3 flex gap-2">
+                          <Input
+                            type="password"
+                            value={geminiKey}
+                            onChange={(e) => setGeminiKey(e.target.value)}
+                            placeholder="粘贴 Gemini API Key"
+                            leftIcon={<KeyRound className="h-4 w-4" />}
+                            className="font-mono"
+                          />
+                          <button type="button" onClick={handleSaveApiKey} className="btn btn-md btn-primary px-5 shrink-0">
+                            <Save className="h-3.5 w-3.5" /> 保存
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 后端状态 */}
+                      {opt.value === "api" && active && apiOk === false && (
+                        <div className="flex items-center gap-1 text-[11px] text-red-500 font-semibold mt-1">
+                          <AlertCircle className="h-3 w-3" /> 后端不可用，已自动回退本地引擎
+                        </div>
+                      )}
+                      {opt.value === "api" && active && apiOk === true && (
+                        <div className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                          <CheckCircle2 className="h-3 w-3" /> 连接正常
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex items-start gap-2 rounded-lg bg-surface-1 border border-border p-3 text-xs text-fg-muted leading-relaxed">
+              <Sparkles className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-0.5" />
+              <p>
+                <span className="font-semibold text-fg-secondary">普通用户优先使用「本地离线」或「API Key」。</span>
+                Google OAuth 是实验通道，可能受 Google Cloud 项目、敏感 scope 审核、quota project 与 IAM 配置影响；
+                {GOOGLE_CLOUD_PROJECT_ID ? " 当前已配置 quota project。" : " 当前未配置 NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_ID。"}
+                任何引擎失败都会自动回退本地引擎，不影响使用。
+              </p>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">手机号码</label>
-            <input 
-              type="text" 
-              value={phone} 
-              onChange={(e) => setPhone(e.target.value)} 
-              placeholder="例如：13800000000（可选，用于联系方式）"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 transition-all"
-            />
+          {/* 2. Profile prefill */}
+          <div className="card rounded-2xl p-5 sm:p-6 space-y-4 animate-stagger-in">
+            <SectionHeader icon={User} tone={SECTION_ICONS.profile} title="申诉人预填资料" desc="自动填入申诉书模板，省去每次手动输入" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="您的姓名 / 称呼">
+                <Input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="例如：张先生（可选）" />
+              </FormField>
+              <FormField label="手机号码">
+                <Input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="例如：13800000000（可选）" leftIcon={<Phone className="h-4 w-4" />} />
+              </FormField>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button onClick={handleSaveProfile} className="btn btn-sm btn-primary">
+                <Save className="h-3.5 w-3.5" /> 保存预填资料
+              </button>
+            </div>
           </div>
 
-          <div className="pt-2 flex justify-end">
-            <button 
-              onClick={handleSaveProfile} 
-              className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold shadow-md shadow-brand-500/20"
-            >
-              保存预填资料
-            </button>
+          {/* 3. Backend endpoint */}
+          <div className="card rounded-2xl p-5 sm:p-6 space-y-4 animate-stagger-in">
+            <SectionHeader icon={Shield} tone={SECTION_ICONS.api} title="后端 API 接口配置" desc="仅「后端 FastAPI」模式需要" />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={apiUrl}
+                onChange={(e) => setApiUrlState(e.target.value)}
+                placeholder="http://localhost:8000"
+                className="flex-1 input-field font-mono"
+              />
+              <button onClick={handleSaveApiUrl} className="btn btn-md btn-primary px-5 shrink-0">保存</button>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button onClick={handleCheckApi} disabled={checking} className="btn btn-sm btn-secondary gap-1.5">
+                {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                检测连接状态
+              </button>
+              {apiOk === true && <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">连接成功 ✅</span>}
+              {apiOk === false && <span className="text-xs font-semibold text-red-500">连接失败 ❌</span>}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Data Backup and Restore */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm mb-6">
-        <h2 className="mb-2 text-lg font-bold text-slate-900">💾 数据备份与恢复</h2>
-        <p className="text-xs text-slate-500 mb-4">备份您的所有任务、诊断书、以及预填资料到本地文件，或从备份文件中恢复，防止浏览器缓存清理导致数据丢失。</p>
-        <div className="flex flex-wrap gap-3">
-          <button 
-            onClick={handleExportData} 
-            className="rounded-xl border border-brand-200 bg-white px-5 py-2.5 text-sm font-semibold text-brand-600 hover:bg-brand-50 transition-all shadow-sm"
-          >
-            📤 导出备份文件
-          </button>
-          <label className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-all shadow-sm cursor-pointer">
-            📥 导入备份文件
-            <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
-          </label>
-        </div>
-      </div>
-
-      {/* LLM Mode */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm mb-6">
-        <h2 className="mb-4 text-lg font-bold text-slate-900">AI 分析模式</h2>
-        
-        <div className="space-y-3">
-          <label className={`flex items-start gap-3 cursor-pointer rounded-xl p-4 transition-all ${mode === "local" ? "bg-brand-50 border-2 border-brand-300" : "hover:bg-slate-50 border-2 border-transparent"}`}>
-            <input type="radio" name="llm-mode" checked={mode === "local"} onChange={() => handleModeChange("local")} className="mt-1 h-4 w-4 text-brand-600 focus:ring-brand-500" />
-            <div>
-              <p className="text-sm font-semibold text-slate-800">本地分析（默认）</p>
-              <p className="mt-1 text-xs text-slate-500">浏览器内规则引擎，无需后端，无需 API Key。分析结果基于关键词匹配和预设规则。</p>
+          {/* 4. Backup & restore */}
+          <div className="card rounded-2xl p-5 sm:p-6 space-y-4 animate-stagger-in">
+            <SectionHeader icon={Database} tone={SECTION_ICONS.data} title="本地数据管理" desc="备份您的所有任务、诊断书及个人资料" />
+            <p className="text-xs text-fg-muted leading-relaxed">
+              数据仅存储在当前浏览器本地。建议定期导出备份文件，以防清理缓存导致记录丢失。备份会恢复本地会话以显示任务，但不会包含密码表、登录 token、Gemini API Key 或 Google OAuth token。
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button onClick={handleExportData} className="btn btn-sm btn-secondary gap-1.5">
+                <Download className="h-3.5 w-3.5" /> 导出备份 (.json)
+              </button>
+              <label className="btn btn-sm btn-secondary cursor-pointer gap-1.5">
+                <Upload className="h-3.5 w-3.5" /> 导入备份
+                <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
+              </label>
             </div>
-          </label>
+          </div>
 
-          <label className={`flex items-start gap-3 cursor-pointer rounded-xl p-4 transition-all ${mode === "api" ? "bg-brand-50 border-2 border-brand-300" : "hover:bg-slate-50 border-2 border-transparent"}`}>
-            <input type="radio" name="llm-mode" checked={mode === "api"} onChange={() => handleModeChange("api")} className="mt-1 h-4 w-4 text-brand-600 focus:ring-brand-500" />
-            <div>
-              <p className="text-sm font-semibold text-slate-800">真实 AI（后端代理）</p>
-              <p className="mt-1 text-xs text-slate-500">通过后端 FastAPI 调用真实 LLM（OpenAI/DeepSeek/智谱等）。需要后端服务运行和 API Key 配置。</p>
-              {mode === "api" && apiOk === false && (
-                <p className="mt-2 text-xs text-red-600 font-medium">⚠️ 后端不可用，当前会回退到本地分析</p>
-              )}
-              {mode === "api" && apiOk === true && (
-                <p className="mt-2 text-xs text-green-600 font-medium">✅ 后端连接正常</p>
-              )}
-            </div>
-          </label>
         </div>
-      </div>
-
-      {/* API URL */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm mb-6">
-        <h2 className="mb-4 text-lg font-bold text-slate-900">后端地址</h2>
-        <div className="flex gap-3">
-          <input type="text" value={apiUrl} onChange={(e) => setApiUrlState(e.target.value)}
-            placeholder="http://localhost:8000"
-            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 transition-all" />
-          <button onClick={handleSaveApiUrl} className="btn-primary shrink-0 rounded-xl px-5 py-3 text-sm font-semibold shadow-lg shadow-brand-500/25">
-            保存
-          </button>
-        </div>
-        <div className="mt-4">
-          <button onClick={handleCheckApi} disabled={checking}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50">
-            {checking ? "检测中..." : "🔍 检测连接"}
-          </button>
-          {apiOk === true && <span className="ml-3 text-sm text-green-600 font-medium">连接成功 ✅</span>}
-          {apiOk === false && <span className="ml-3 text-sm text-red-600 font-medium">连接失败 ❌</span>}
-        </div>
-      </div>
-
-      {/* How to setup backend */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-bold text-slate-900">如何启用真实 AI？</h2>
-        <ol className="space-y-3 text-sm text-slate-600">
-          <li className="flex gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">1</span>
-            <span>启动后端：<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono">cd apps/api && uvicorn app.main:app --reload</code></span>
-          </li>
-          <li className="flex gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">2</span>
-            <span>配置 API Key：在 <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono">apps/api/.env</code> 中设置</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">3</span>
-            <div>
-              <p>必须设置：</p>
-              <pre className="mt-2 rounded-xl bg-slate-900 p-4 text-xs font-mono text-green-400 overflow-x-auto">{`LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini  # 或 deepseek-chat 等`}</pre>
-              <p className="mt-2">可选（兼容其他 OpenAI 协议厂商）：</p>
-              <pre className="mt-2 rounded-xl bg-slate-900 p-4 text-xs font-mono text-green-400 overflow-x-auto">{`OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4  # 智谱
-# OPENAI_API_BASE=https://api.deepseek.com  # DeepSeek`}</pre>
-            </div>
-          </li>
-          <li className="flex gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">4</span>
-            <span>切换上方模式为"真实 AI"，检测连接成功即可</span>
-          </li>
-        </ol>
       </div>
     </div>
   );

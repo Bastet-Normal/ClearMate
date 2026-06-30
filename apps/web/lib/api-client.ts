@@ -10,10 +10,26 @@
 
 import axios from "axios";
 
+function readLocalStorage(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function removeLocalStorage(key: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
+
 /** 获取当前 API base URL */
 function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("cm_api_url");
+    const stored = readLocalStorage("cm_api_url");
     if (stored) return stored;
   }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -27,7 +43,7 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   config.baseURL = getApiBaseUrl();
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("cm_token");
+    const token = readLocalStorage("cm_token");
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -38,8 +54,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("cm_token");
-      localStorage.removeItem("cm_user");
+      removeLocalStorage("cm_token");
+      removeLocalStorage("cm_user");
       // 用软跳转而非 window.location，basePath 下不会出错
       window.dispatchEvent(new CustomEvent("cm:unauthorized"));
     }
@@ -77,7 +93,7 @@ export async function apiGetTask(taskId: number) {
 }
 
 export async function apiUpdateTask(taskId: number, data: Record<string, unknown>) {
-  const res = await api.put(`/api/v1/tasks/${taskId}`, data);
+  const res = await api.patch(`/api/v1/tasks/${taskId}`, data);
   return res.data;
 }
 
