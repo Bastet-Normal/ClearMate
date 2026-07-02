@@ -27,7 +27,7 @@
 
 > 🌐 **零后端依赖，即开即用！**
 >
-> 🚀 **在线直接体验：[https://wangjiehu.github.io/ClearMate/](https://wangjiehu.github.io/ClearMate/)**
+> 🚀 **在线直接体验：[https://bastet-normal.github.io/ClearMate/](https://bastet-normal.github.io/ClearMate/)**
 
 ---
 
