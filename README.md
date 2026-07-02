@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/wangjiehu/ClearMate/actions"><img src="https://img.shields.io/github/actions/workflow/status/wangjiehu/ClearMate/deploy.yml?branch=main&style=flat-square&logo=github-actions&logoColor=white&label=GitHub%20Pages" alt="GitHub Pages Status" /></a>
+  <a href="https://github.com/Bastet-Normal/ClearMate/actions"><img src="https://img.shields.io/github/actions/workflow/status/Bastet-Normal/ClearMate/deploy.yml?branch=main&style=flat-square&logo=github-actions&logoColor=white&label=GitHub%20Pages" alt="GitHub Pages Status" /></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-14.2-000000?style=flat-square&logo=next.js&logoColor=white" alt="Next.js" /></a>
   <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" /></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" /></a>
@@ -99,7 +99,7 @@ graph TD
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/wangjiehu/ClearMate.git
+git clone https://github.com/Bastet-Normal/ClearMate.git
 cd ClearMate
 
 # 2. 进入前端目录

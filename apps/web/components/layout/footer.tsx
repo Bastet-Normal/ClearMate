@@ -35,7 +35,7 @@ export function Footer() {
             </p>
             <div className="flex items-center gap-3">
               <a
-                href="https://github.com/wangjiehu/ClearMate"
+                href="https://github.com/Bastet-Normal/ClearMate"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-xs text-fg-faint hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
