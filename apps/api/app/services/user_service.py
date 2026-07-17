@@ -1,5 +1,6 @@
 """User service – business logic for registration & login."""
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password, verify_password
@@ -13,16 +14,21 @@ class UserService:
         self.repo = UserRepository(db)
 
     async def register(self, data: UserRegister) -> TokenResponse:
-        existing = await self.repo.get_by_email(data.email)
+        email = str(data.email).strip().lower()
+        existing = await self.repo.get_by_email(email)
         if existing:
             raise ValueError("该邮箱已注册")
 
         user = User(
-            email=data.email,
-            nickname=data.nickname,
+            email=email,
+            nickname=data.nickname.strip(),
             hashed_password=hash_password(data.password),
         )
-        user = await self.repo.create(user)
+        try:
+            user = await self.repo.create(user)
+        except IntegrityError as exc:
+            await self.repo.db.rollback()
+            raise ValueError("该邮箱已注册") from exc
 
         token = create_access_token({"sub": str(user.id)})
         return TokenResponse(
@@ -31,7 +37,7 @@ class UserService:
         )
 
     async def login(self, email: str, password: str) -> TokenResponse:
-        user = await self.repo.get_by_email(email)
+        user = await self.repo.get_by_email(email.strip().lower())
         if not user or not verify_password(password, user.hashed_password):
             raise ValueError("邮箱或密码错误")
         if not user.is_active:

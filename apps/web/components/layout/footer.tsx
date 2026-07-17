@@ -31,7 +31,7 @@ export function Footer() {
               <span className="text-base font-black text-gradient-brand">ClearMate</span>
             </div>
             <p className="text-sm text-fg-muted leading-relaxed max-w-xs">
-              帮普通人看懂风险、处理麻烦、维护权益的 AI 生活事务代理平台。零后端依赖，数据保存本地，隐私优先。
+              帮普通人看懂风险、处理麻烦、维护权益的 AI 生活事务代理平台。默认本地运行，也可按需连接云端模型。
             </p>
             <div className="flex items-center gap-3">
               <a

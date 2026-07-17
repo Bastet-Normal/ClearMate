@@ -1,9 +1,20 @@
 const SENSITIVE_STORAGE_KEY_LIST = [
   "cm_token",
+  "cm_api_token",
   "cm_custom_gemini_key",
   "cm_gemini_oauth_token",
   "cm_users_with_pw",
 ] as const;
+
+const PORTABLE_STORAGE_KEYS = new Set([
+  "cm_tasks",
+  "cm_analyses",
+  "cm_files",
+  "cm_user_profile",
+  "cm_self_check_results",
+  "cm_theme",
+  "cm_elder_mode",
+]);
 
 const SENSITIVE_STORAGE_KEYS = new Set<string>(SENSITIVE_STORAGE_KEY_LIST);
 
@@ -57,6 +68,7 @@ export function getClearMateStorageKeys(options?: { includeSensitive?: boolean }
 export function exportClearMateData(): Record<string, string> {
   const data: Record<string, string> = {};
   for (const key of getClearMateStorageKeys()) {
+    if (!PORTABLE_STORAGE_KEYS.has(key)) continue;
     const value = safeGetItem(key);
     if (value !== null) data[key] = value;
   }
@@ -70,17 +82,12 @@ export function importClearMateData(parsed: unknown): number {
 
   let count = 0;
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (!key.startsWith("cm_")) continue;
-    if (SENSITIVE_STORAGE_KEYS.has(key)) continue;
+    if (!PORTABLE_STORAGE_KEYS.has(key)) continue;
     if (typeof value !== "string") continue;
     if (safeSetItem(key, value)) count += 1;
   }
 
   if (count === 0) throw new Error("文件中未包含可导入的 ClearMate 数据");
-
-  if (safeGetItem("cm_user") && !safeGetItem("cm_token")) {
-    safeSetItem("cm_token", `local-restore-${Date.now()}`);
-  }
 
   return count;
 }

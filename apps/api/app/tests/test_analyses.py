@@ -24,6 +24,9 @@ async def test_create_analysis_returns_201(auth_client):
     assert "summary" in data["result_json"]
     assert "risk_points" in data["result_json"]
 
+    task = await auth_client.get(f"/api/v1/tasks/{task_id}")
+    assert task.json()["status"] == "waiting_confirmation"
+
 
 @pytest.mark.asyncio
 async def test_analysis_updates_task_risk_level(auth_client):

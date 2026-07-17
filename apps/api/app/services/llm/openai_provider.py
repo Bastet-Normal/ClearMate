@@ -12,7 +12,6 @@
 """
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -36,8 +35,15 @@ class OpenAIProvider(LLMProvider):
         *,
         api_base: str | None = None,
         default_model: str = "gpt-4o-mini",
+        timeout: float = 60.0,
+        max_retries: int = 2,
     ):
-        self.client = AsyncOpenAI(api_key=api_key, base_url=api_base)
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=api_base,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
         self.default_model = default_model
 
     async def chat(
@@ -76,5 +82,7 @@ class OpenAIProvider(LLMProvider):
             provider=self.name,
             model=kwargs["model"],
             usage=usage,
-            raw=json.loads(resp.model_dump_json()),
+            # Do not retain the complete provider response; it may contain
+            # sensitive user input and is not needed by the analysis service.
+            raw=None,
         )

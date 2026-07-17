@@ -91,7 +91,7 @@ export default function HomePage() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 dark:border-brand-800/60 bg-white/60 dark:bg-brand-950/30 px-4 py-1.5 text-sm text-brand-700 dark:text-brand-300 backdrop-blur-sm mb-8 animate-fade-in">
             <ShieldCheck className="h-4 w-4" />
-            <span>100% 本地计算 · 隐私优先</span>
+            <span>默认本地计算 · 隐私优先</span>
           </div>
 
           {/* Headline — 小眉题 + 大主标 */}
@@ -259,7 +259,7 @@ export default function HomePage() {
           {/* Privacy guarantee */}
           <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-fg-muted">
             {[
-              { icon: "🔒", text: "数据100%本地存储，绝不上传云端" },
+              { icon: "🔒", text: "默认本地存储；启用云端模型时仅发送本次分析内容" },
               { icon: "🛡️", text: "API密钥仅保存在您的浏览器" },
               { icon: "📋", text: "AI结果仅供参考，附详细免责说明" },
             ].map(({ icon, text }) => (

@@ -33,6 +33,8 @@ def _build_provider() -> LLMProvider:
             api_key=settings.OPENAI_API_KEY,
             api_base=settings.OPENAI_API_BASE,
             default_model=settings.OPENAI_MODEL,
+            timeout=settings.LLM_TIMEOUT_SECONDS,
+            max_retries=settings.LLM_MAX_RETRIES,
         )
     if provider == "mock":
         return MockProvider()

@@ -53,11 +53,35 @@ export function setLLMMode(mode: LLMMode) {
 
 export function getApiUrl(): string {
   if (typeof window === "undefined") return "";
-  return readItem(API_URL_KEY) || "http://localhost:8000";
+  const stored = readItem(API_URL_KEY);
+  if (!stored) return "http://localhost:8000";
+  try {
+    return normalizeApiUrl(stored);
+  } catch {
+    removeItem(API_URL_KEY);
+    return "http://localhost:8000";
+  }
 }
 
 export function setApiUrl(url: string) {
-  writeItem(API_URL_KEY, url);
+  writeItem(API_URL_KEY, normalizeApiUrl(url));
+}
+
+export function normalizeApiUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    throw new Error("请输入有效的后端地址");
+  }
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && localHosts.has(url.hostname))) {
+    throw new Error("远程后端必须使用 HTTPS；HTTP 仅允许本机地址");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("后端地址不能包含账号、查询参数或片段");
+  }
+  return url.toString().replace(/\/$/, "");
 }
 
 export function isApiMode(): boolean {

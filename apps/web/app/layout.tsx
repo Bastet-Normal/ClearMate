@@ -44,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className={`${inter.variable} scroll-smooth`} suppressHydrationWarning>
+    <html lang="zh-CN" className={`${inter.variable} scroll-smooth`} suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         {/* Inline theme script to prevent FOUC */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

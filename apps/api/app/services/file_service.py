@@ -1,7 +1,10 @@
 """File service - 上传、文本提取、删除。"""
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
+import re
 import uuid
 from pathlib import Path
 
@@ -9,6 +12,14 @@ from app.core.config import settings
 from app.models.file import File
 from app.repositories.file import FileRepository
 from app.services.file_text_extractor import extract_text
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_original_name(name: str) -> str:
+    basename = re.split(r"[\\/]", name)[-1]
+    basename = "".join(char for char in basename if char.isprintable()).strip(" .")
+    return (basename or "unnamed")[:255]
 
 
 class FileService:
@@ -32,14 +43,15 @@ class FileService:
         """保存上传文件并提取文本。"""
         storage_dir = self._ensure_storage_dir()
 
+        original_name = _safe_original_name(original_name)
+
         # 生成唯一文件名，保留原扩展名
         ext = Path(original_name).suffix.lower()
         unique_name = f"{user_id}_{uuid.uuid4().hex}{ext}"
         file_path = storage_dir / unique_name
 
         # 写入磁盘
-        with open(file_path, "wb") as f:
-            f.write(content)
+        await asyncio.to_thread(file_path.write_bytes, content)
 
         # 创建数据库记录
         file_record = File(
@@ -51,7 +63,11 @@ class FileService:
             extracted_text=None,
             extraction_status="pending",
         )
-        file_record = await self.repo.create(file_record)
+        try:
+            file_record = await self.repo.create(file_record)
+        except Exception:
+            file_path.unlink(missing_ok=True)
+            raise
 
         # 提取文本（同步，因为文件不大）
         try:
@@ -64,10 +80,11 @@ class FileService:
                 },
             )
         except Exception as e:
+            logger.warning("Text extraction failed for upload %s: %s", file_record.id, e)
             await self.repo.update(
                 file_record,
                 {
-                    "extracted_text": f"[文本提取失败: {str(e)[:100]}]",
+                    "extracted_text": "[文本提取失败，请检查文件是否完整或改用文本输入]",
                     "extraction_status": "failed",
                 },
             )
@@ -85,12 +102,12 @@ class FileService:
         if not file_record:
             return False
 
-        # 删除物理文件
+        await self.repo.delete(file_record)
+
+        # 数据库删除成功后清理物理文件；失败时记录孤儿文件供运维清理。
         try:
             if os.path.exists(file_record.storage_path):
                 os.remove(file_record.storage_path)
-        except OSError:
-            pass  # 文件不存在就算了
-
-        await self.repo.delete(file_record)
+        except OSError as exc:
+            logger.warning("Failed to remove stored file %s: %s", file_record.id, exc)
         return True

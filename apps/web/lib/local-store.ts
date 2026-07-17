@@ -6,6 +6,7 @@ GitHub Pages 没有后端，所以所有数据存在浏览器本地。
 
 import type { Task, AnalysisResult } from "@/types";
 import { supabase, isSupabaseConfigured } from "./supabase";
+import { getLLMMode } from "./llm-mode";
 
 const STORAGE_KEYS = {
   USER: "cm_user",
@@ -14,6 +15,8 @@ const STORAGE_KEYS = {
   ANALYSES: "cm_analyses",
   FILES: "cm_files",
 } as const;
+
+const API_TOKEN_KEY = "cm_api_token";
 
 function getStorageItem(key: string): string | null {
   if (typeof window === "undefined") return null;
@@ -59,15 +62,61 @@ function setJsonItem(key: string, value: unknown): boolean {
   }
 }
 
-// ---- Simple hash (prevent plaintext passwords in localStorage) ----
+// ---- Local demo account password hashing ----
 
-function simpleHash(str: string): string {
+const PBKDF2_ITERATIONS = 210_000;
+
+function legacySimpleHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const ch = str.charCodeAt(i);
     hash = ((hash << 5) - hash + ch) | 0;
   }
   return "h_" + Math.abs(hash).toString(36);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...Array.from(bytes)));
+}
+
+async function hashLocalPassword(password: string, salt?: Uint8Array): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("当前浏览器不支持安全的本地账号存储，请启用 Supabase 登录");
+  }
+  const actualSalt = salt ?? globalThis.crypto.getRandomValues(new Uint8Array(16));
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await globalThis.crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt: actualSalt.buffer.slice(
+        actualSalt.byteOffset,
+        actualSalt.byteOffset + actualSalt.byteLength
+      ) as ArrayBuffer,
+      iterations: PBKDF2_ITERATIONS,
+    },
+    key,
+    256
+  );
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${bytesToBase64(actualSalt)}$${bytesToBase64(new Uint8Array(bits))}`;
+}
+
+async function verifyLocalPassword(password: string, stored: string): Promise<boolean> {
+  if (stored.startsWith("h_")) return stored === legacySimpleHash(password);
+  const [scheme, iterations, encodedSalt] = stored.split("$");
+  if (scheme !== "pbkdf2" || Number(iterations) !== PBKDF2_ITERATIONS || !encodedSalt) return false;
+  try {
+    const salt = Uint8Array.from(atob(encodedSalt), (char) => char.charCodeAt(0));
+    return (await hashLocalPassword(password, salt)) === stored;
+  } catch {
+    return false;
+  }
 }
 
 /** 通知 Header 等持久组件刷新登录态（登录/注册/登出/会话恢复后触发） */
@@ -134,6 +183,10 @@ export function setStoredProfile(profile: UserProfile) {
 
 export function isLoggedIn(): boolean {
   return !!getStoredUser() && !!getStorageItem(STORAGE_KEYS.TOKEN);
+}
+
+export function isApiAuthenticated(): boolean {
+  return !!getStorageItem(API_TOKEN_KEY);
 }
 
 // ---- Tasks ----
@@ -312,6 +365,24 @@ function mapSupabaseUser(u: any): LocalUser {
   };
 }
 
+function mapApiUser(u: {
+  id: number | string;
+  email: string;
+  nickname: string;
+  member_mode?: string;
+  is_active?: boolean;
+  created_at: string;
+}): LocalUser {
+  return {
+    id: String(u.id),
+    email: u.email,
+    nickname: u.nickname,
+    member_mode: u.member_mode || "normal",
+    is_active: u.is_active ?? true,
+    created_at: u.created_at,
+  };
+}
+
 /** Supabase 鉴权错误信息翻成中文 */
 function translateSupabaseError(msg: string): string {
   const m = msg.toLowerCase();
@@ -329,6 +400,7 @@ function translateSupabaseError(msg: string): string {
  * 供各页面同步读取（isLoggedIn / getStoredUser）。AuthProvider 挂载时调用一次。
  */
 export function initAuthMirror(): (() => void) | undefined {
+  if (getLLMMode() === "api") return undefined;
   if (!isSupabaseConfigured() || !supabase) return undefined;
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
@@ -349,6 +421,17 @@ export async function register(data: {
   nickname: string;
   password: string;
 }): Promise<{ token: string; user: LocalUser }> {
+  if (getLLMMode() === "api") {
+    const { apiRegister } = await import("./api-client");
+    const res = await apiRegister(data.email.trim().toLowerCase(), data.nickname.trim(), data.password);
+    const user = mapApiUser(res.user);
+    setStoredUser(user);
+    setStorageItem(API_TOKEN_KEY, res.access_token);
+    setStorageItem(STORAGE_KEYS.TOKEN, res.access_token);
+    emitAuthChange();
+    return { token: res.access_token, user };
+  }
+
   // ── Supabase 真实账号 ──
   if (isSupabaseConfigured() && supabase) {
     const { data: res, error } = await supabase.auth.signUp({
@@ -370,20 +453,21 @@ export async function register(data: {
 
   // ── 本地兜底 ──
   const users = getStoredUsers();
-  if (users.find((u) => u.email === data.email)) {
+  const email = data.email.trim().toLowerCase();
+  if (users.find((u) => u.email.toLowerCase() === email)) {
     throw new Error("该邮箱已注册");
   }
   const numericId =
     users.length > 0 ? Math.max(...users.map((u) => Number(u.id) || 0)) + 1 : 1;
   const user: LocalUser = {
     id: String(numericId),
-    email: data.email,
-    nickname: data.nickname,
+    email,
+    nickname: data.nickname.trim(),
     member_mode: "normal",
     is_active: true,
     created_at: new Date().toISOString(),
   };
-  const userWithPw = { ...user, password: simpleHash(data.password) };
+  const userWithPw = { ...user, password: await hashLocalPassword(data.password) };
   users.push(userWithPw);
   saveStoredUsers(users);
   const token = `local-token-${user.id}-${Date.now()}`;
@@ -397,6 +481,17 @@ export async function login(data: {
   email: string;
   password: string;
 }): Promise<{ token: string; user: LocalUser }> {
+  if (getLLMMode() === "api") {
+    const { apiLogin } = await import("./api-client");
+    const res = await apiLogin(data.email.trim().toLowerCase(), data.password);
+    const user = mapApiUser(res.user);
+    setStoredUser(user);
+    setStorageItem(API_TOKEN_KEY, res.access_token);
+    setStorageItem(STORAGE_KEYS.TOKEN, res.access_token);
+    emitAuthChange();
+    return { token: res.access_token, user };
+  }
+
   if (isSupabaseConfigured() && supabase) {
     const { data: res, error } = await supabase.auth.signInWithPassword({
       email: data.email,
@@ -412,11 +507,15 @@ export async function login(data: {
 
   // 本地兜底
   const users = getStoredUsers();
-  const found = users.find((u) => u.email === data.email);
-  if (!found || found.password !== simpleHash(data.password)) {
+  const found = users.find((u) => u.email.toLowerCase() === data.email.trim().toLowerCase());
+  if (!found || !(await verifyLocalPassword(data.password, found.password))) {
     throw new Error("邮箱或密码错误");
   }
   if (!found.is_active) throw new Error("账号已被禁用");
+  if (found.password.startsWith("h_")) {
+    found.password = await hashLocalPassword(data.password);
+    saveStoredUsers(users);
+  }
   const user: LocalUser = {
     id: found.id,
     email: found.email,
@@ -437,6 +536,7 @@ export async function logout() {
     try { await supabase.auth.signOut(); } catch {}
   }
   setStoredUser(null);
+  removeStorageItem(API_TOKEN_KEY);
   removeStorageItem(STORAGE_KEYS.TOKEN);
   emitAuthChange();
 }

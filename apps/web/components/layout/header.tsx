@@ -147,6 +147,7 @@ export function Header() {
             {/* Elder mode toggle */}
             <button
               onClick={toggleElderMode}
+              aria-label={isElder ? "切换标准模式" : "切换老人模式"}
               className={cn(
                 "hidden sm:flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 text-base",
                 isElder
@@ -198,6 +199,8 @@ export function Header() {
             {/* Mobile hamburger */}
             <button
               onClick={() => setMenuOpen(v => !v)}
+              aria-label={menuOpen ? "关闭导航菜单" : "打开导航菜单"}
+              aria-expanded={menuOpen}
               className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted hover:bg-surface-2 transition-all"
             >
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

@@ -18,6 +18,15 @@ async def test_create_task_returns_201(auth_client):
 
 
 @pytest.mark.asyncio
+async def test_create_task_rejects_unknown_type(auth_client):
+    r = await auth_client.post("/api/v1/tasks", json={
+        "title": "未知类型",
+        "task_type": "arbitrary_type",
+    })
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_list_tasks_returns_paginated(auth_client):
     for i in range(3):
         await auth_client.post("/api/v1/tasks", json={
@@ -57,6 +66,21 @@ async def test_update_task_status_and_risk(auth_client):
     assert r2.status_code == 200
     assert r2.json()["status"] == "analyzing"
     assert r2.json()["risk_level"] == "high"
+
+    r3 = await auth_client.patch(f"/api/v1/tasks/{task_id}", json={"risk_level": None})
+    assert r3.status_code == 200
+    assert r3.json()["risk_level"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_task_rejects_unknown_status(auth_client):
+    r = await auth_client.post("/api/v1/tasks", json={
+        "title": "状态校验",
+        "task_type": "scam_check",
+    })
+    task_id = r.json()["id"]
+    r2 = await auth_client.patch(f"/api/v1/tasks/{task_id}", json={"status": "unknown"})
+    assert r2.status_code == 422
 
 
 @pytest.mark.asyncio

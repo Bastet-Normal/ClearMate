@@ -5,17 +5,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis import Analysis
 from app.models.task import Task
-from app.repositories.task import TaskRepository
 from app.services.llm import AnalysisResult as LLMAnalysisResult
 from app.services.llm import LLMClient
 from app.services.llm.prompts import build_messages
+
+
+class AnalysisProviderError(RuntimeError):
+    """Raised when the configured model provider cannot complete an analysis."""
 
 
 class AnalysisService:
     def __init__(self, db: AsyncSession, llm_client: LLMClient):
         self.db = db
         self.llm = llm_client
-        self.task_repo = TaskRepository(db)
 
     async def analyze_task(self, task: Task) -> Analysis:
         """对指定任务执行一次 AI 分析。
@@ -27,8 +29,15 @@ class AnalysisService:
         4. 同步更新 task.risk_level / task.status
         """
         messages = build_messages(task.task_type, task.title, task.description)
+        task.status = "analyzing"
+        await self.db.commit()
 
-        resp = await self.llm.chat(messages)
+        try:
+            resp = await self.llm.chat(messages)
+        except Exception as exc:
+            task.status = "failed"
+            await self.db.commit()
+            raise AnalysisProviderError("模型服务暂时不可用") from exc
         result: LLMAnalysisResult = resp.parsed or LLMAnalysisResult(
             summary=resp.content[:500] if resp.content else "无内容",
             risk_level="medium",
@@ -57,11 +66,9 @@ class AnalysisService:
         )
         self.db.add(analysis)
 
-        # 同步任务状态
-        update_data: dict = {"risk_level": result.risk_level.value}
-        if task.status == "draft":
-            update_data["status"] = "analyzing"
-        task = await self.task_repo.update(task, update_data)
+        # 分析与任务状态在同一事务提交，避免只保存其中一项。
+        task.risk_level = result.risk_level.value
+        task.status = "waiting_confirmation"
 
         await self.db.commit()
         await self.db.refresh(analysis)

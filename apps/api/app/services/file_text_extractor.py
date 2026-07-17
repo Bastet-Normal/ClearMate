@@ -9,6 +9,7 @@ MVP 支持：
 """
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 _MAX_TEXT_LENGTH = 50000
@@ -17,9 +18,9 @@ _MAX_TEXT_LENGTH = 50000
 async def extract_text(file_path: Path, mime_type: str) -> str:
     """根据 MIME 类型提取文本。失败抛异常，由调用方处理。"""
     if mime_type.startswith("text/"):
-        return _extract_text_file(file_path)
+        return await asyncio.to_thread(_extract_text_file, file_path)
     if mime_type == "application/pdf":
-        return _extract_pdf(file_path)
+        return await asyncio.to_thread(_extract_pdf, file_path)
     if mime_type.startswith("image/"):
         return _extract_image_placeholder(file_path)
     raise ValueError(f"暂不支持的文件类型: {mime_type}")

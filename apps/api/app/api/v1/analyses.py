@@ -9,7 +9,7 @@ from app.models.analysis import Analysis
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.analysis import AnalysisOut
-from app.services.analysis_service import AnalysisService
+from app.services.analysis_service import AnalysisProviderError, AnalysisService
 from app.services.llm import get_llm_client
 
 router = APIRouter(prefix="/tasks/{task_id}/analyses", tags=["analyses"])
@@ -32,7 +32,10 @@ async def create_analysis(
 
     llm = get_llm_client()
     svc = AnalysisService(db, llm)
-    analysis = await svc.analyze_task(task)
+    try:
+        analysis = await svc.analyze_task(task)
+    except AnalysisProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return AnalysisOut.model_validate(analysis)
 
 

@@ -81,6 +81,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPwd(v => !v)}
+                    aria-label={showPwd ? "隐藏密码" : "显示密码"}
                     className="text-fg-faint hover:text-fg-secondary transition-colors pointer-events-auto"
                   >
                     {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

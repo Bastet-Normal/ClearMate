@@ -1,5 +1,6 @@
-from typing import Optional
+from typing import Literal, Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -9,6 +10,7 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "ClearMate"
     APP_VERSION: str = "0.2.0"
+    ENVIRONMENT: Literal["development", "test", "production"] = "development"
     DEBUG: bool = False
 
     # Database (default to SQLite for local dev; override with .env for PostgreSQL)
@@ -29,8 +31,6 @@ class Settings(BaseSettings):
     ALLOWED_MIME_TYPES: str = (
         "image/jpeg,image/png,image/gif,image/webp,"
         "application/pdf,"
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
         "text/plain"
     )
 
@@ -46,9 +46,24 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_API_BASE: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4o-mini"
+    LLM_TIMEOUT_SECONDS: float = 60.0
+    LLM_MAX_RETRIES: int = 2
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000"
+
+    @model_validator(mode="after")
+    def validate_production_security(self):
+        if self.ENVIRONMENT != "production":
+            return self
+        if self.DEBUG:
+            raise ValueError("生产环境禁止启用 DEBUG")
+        uses_default_secret = self.SECRET_KEY == "change-me-in-production-use-a-strong-secret"
+        if uses_default_secret or len(self.SECRET_KEY) < 32:
+            raise ValueError("生产环境必须配置至少 32 字符的独立 SECRET_KEY")
+        if "*" in {origin.strip() for origin in self.CORS_ORIGINS.split(",")}:
+            raise ValueError("生产环境 CORS_ORIGINS 不能使用通配符")
+        return self
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

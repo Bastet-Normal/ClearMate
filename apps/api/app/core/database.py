@@ -7,10 +7,18 @@ from app.core.config import settings
 # Detect if using SQLite
 _is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
-# Synchronous engine for Alembic migrations
+# Normalize driver URLs so the sync migration engine and async API engine each
+# receive a compatible dialect.
 _sync_url = settings.DATABASE_URL
+_async_url = settings.DATABASE_URL
 if _is_sqlite:
     _sync_url = _sync_url.replace("+aiosqlite", "")
+elif _sync_url.startswith("postgresql+asyncpg://"):
+    _sync_url = _sync_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+elif _sync_url.startswith("postgresql://"):
+    _async_url = _async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif _sync_url.startswith("postgresql+psycopg2://"):
+    _async_url = _async_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
 engine = create_engine(_sync_url, echo=settings.DEBUG, future=True)
 
 # SQLite needs foreign key enforcement
@@ -22,7 +30,7 @@ if _is_sqlite:
         cursor.close()
 
 # Async engine for FastAPI
-async_engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
+async_engine = create_async_engine(_async_url, echo=settings.DEBUG)
 
 if _is_sqlite:
     @event.listens_for(async_engine.sync_engine, "connect")

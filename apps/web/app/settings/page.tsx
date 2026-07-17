@@ -16,7 +16,7 @@ import {
   GOOGLE_CLOUD_PROJECT_ID, isOAuthConfigured, getOAuthStatus, loginWithGoogle, logoutGoogle, type OAuthStatus,
 } from "@/lib/gemini-oauth";
 import { useToast } from "@/components/ui/toast";
-import { getStoredProfile, setStoredProfile } from "@/lib/local-store";
+import { getStoredProfile, isApiAuthenticated, setStoredProfile } from "@/lib/local-store";
 import { exportClearMateData, importClearMateData } from "@/lib/client-storage";
 import { FormField, Input } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
@@ -82,8 +82,15 @@ export default function SettingsPage() {
       const ok = await checkApiAvailable();
       setApiOk(ok);
       setChecking(false);
-      if (!ok) toast.error("切换失败", "后端服务不可用，已自动回退本地引擎");
-      else toast.success("已连接", "已连接至后端真实 AI 引擎");
+      if (!ok) {
+        setMode("local");
+        setLLMMode("local");
+        toast.error("切换失败", "后端服务不可用，已自动回退本地引擎");
+      } else if (isApiAuthenticated()) {
+        toast.success("已连接", "后端服务与账号认证均可用");
+      } else {
+        toast.info("后端已连接", "请退出当前账号，并在 API 模式下重新登录或注册后端账号");
+      }
     } else if (newMode === "gemini-oauth") {
       if (!oauth.active) toast.info("请完成授权", "点击下方「连接 Google」后再分析；token 过期后需重新连接");
       else toast.success("已切换", "使用 Google OAuth 直连 Gemini（实验）");
@@ -132,8 +139,13 @@ export default function SettingsPage() {
   }
 
   function handleSaveApiUrl() {
-    setApiUrl(apiUrl);
-    toast.success("后端地址已保存");
+    try {
+      setApiUrl(apiUrl);
+      setApiUrlState(getApiUrl());
+      toast.success("后端地址已保存");
+    } catch (err: any) {
+      toast.error("地址无效", err.message || "请检查后端地址");
+    }
   }
 
   function handleSaveProfile() {
@@ -182,7 +194,7 @@ export default function SettingsPage() {
   const ENGINE_OPTIONS: {
     value: LLMMode; title: string; desc: string; badge?: string;
   }[] = [
-    { value: "local",       title: "本地离线引擎", desc: "无需 Key 与后端，浏览器内规则引擎秒级诊断，绝对隐私", badge: "默认" },
+    { value: "local",       title: "本地离线引擎", desc: "无需 Key 与后端，分析内容不离开当前浏览器", badge: "默认" },
     { value: "gemini-oauth",title: "Gemini · Google OAuth", desc: "实验通道：用短期 Google 授权令牌直连，失败会回退本地引擎", badge: "实验" },
     { value: "gemini-key",  title: "Gemini · API Key", desc: "自填 Gemini API Key，浏览器直连，Key 仅存本地", badge: "" },
     { value: "api",         title: "后端 FastAPI", desc: "连接自建后端，由后端代理真实大模型", badge: "" },
@@ -355,7 +367,7 @@ export default function SettingsPage() {
           <div className="card rounded-2xl p-5 sm:p-6 space-y-4 animate-stagger-in">
             <SectionHeader icon={Database} tone={SECTION_ICONS.data} title="本地数据管理" desc="备份您的所有任务、诊断书及个人资料" />
             <p className="text-xs text-fg-muted leading-relaxed">
-              数据仅存储在当前浏览器本地。建议定期导出备份文件，以防清理缓存导致记录丢失。备份会恢复本地会话以显示任务，但不会包含密码表、登录 token、Gemini API Key 或 Google OAuth token。
+              数据仅存储在当前浏览器本地。建议定期导出备份文件，以防清理缓存导致记录丢失。备份不包含账号、登录 token、后端地址、Gemini API Key 或 Google OAuth token；导入前请先登录对应账号。
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <button onClick={handleExportData} className="btn btn-sm btn-secondary gap-1.5">

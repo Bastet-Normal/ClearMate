@@ -44,8 +44,7 @@ class TaskRepository:
 
     async def update(self, task: Task, data: dict) -> Task:
         for key, value in data.items():
-            if value is not None:
-                setattr(task, key, value)
+            setattr(task, key, value)
         await self.db.commit()
         await self.db.refresh(task)
         return task

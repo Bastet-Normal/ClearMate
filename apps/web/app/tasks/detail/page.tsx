@@ -236,7 +236,7 @@ function TaskDetailContent() {
               <>
                 <div className="flex items-start justify-between gap-4">
                   <h1 className="text-xl sm:text-2xl font-black text-fg-primary leading-snug">{task.title}</h1>
-                  <button onClick={startEdit} className="btn btn-sm btn-ghost shrink-0 text-fg-faint">
+                  <button onClick={startEdit} className="btn btn-sm btn-ghost shrink-0 text-fg-faint" aria-label="编辑任务">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 </div>

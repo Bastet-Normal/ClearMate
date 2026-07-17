@@ -7,3 +7,5 @@ async def test_health(client):
     body = r.json()
     assert body["status"] == "ok"
     assert "version" in body
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["x-frame-options"] == "DENY"

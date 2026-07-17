@@ -9,6 +9,7 @@
  */
 
 import axios from "axios";
+import { getApiUrl } from "@/lib/llm-mode";
 
 function readLocalStorage(key: string): string | null {
   if (typeof window === "undefined") return null;
@@ -29,8 +30,7 @@ function removeLocalStorage(key: string) {
 /** 获取当前 API base URL */
 function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
-    const stored = readLocalStorage("cm_api_url");
-    if (stored) return stored;
+    return getApiUrl();
   }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
@@ -43,7 +43,7 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   config.baseURL = getApiBaseUrl();
   if (typeof window !== "undefined") {
-    const token = readLocalStorage("cm_token");
+    const token = readLocalStorage("cm_api_token");
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -54,6 +54,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
+      removeLocalStorage("cm_api_token");
       removeLocalStorage("cm_token");
       removeLocalStorage("cm_user");
       // 用软跳转而非 window.location，basePath 下不会出错

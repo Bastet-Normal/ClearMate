@@ -14,7 +14,7 @@
 import { analyzeTask as mockAnalyzeTask } from "./mock-analysis";
 import type { AnalysisResult } from "@/types";
 import { getGeminiApiKey, getLLMMode } from "./llm-mode";
-import { isLoggedIn } from "./local-store";
+import { isApiAuthenticated } from "./local-store";
 import { callGemini, GEMINI_MODEL, normalizeAnalysisResult } from "./llm/gemini";
 import { getValidAccessToken, GOOGLE_CLOUD_PROJECT_ID } from "./gemini-oauth";
 
@@ -50,7 +50,7 @@ async function callApiAnalysis(
 }
 
 function canUseApi(): boolean {
-  return getLLMMode() === "api" && isLoggedIn();
+  return getLLMMode() === "api" && isApiAuthenticated();
 }
 
 /**

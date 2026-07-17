@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Bastet-Normal/ClearMate/actions"><img src="https://img.shields.io/github/actions/workflow/status/Bastet-Normal/ClearMate/deploy.yml?branch=main&style=flat-square&logo=github-actions&logoColor=white&label=GitHub%20Pages" alt="GitHub Pages Status" /></a>
-  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-14.2-000000?style=flat-square&logo=next.js&logoColor=white" alt="Next.js" /></a>
+  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-15.5-000000?style=flat-square&logo=next.js&logoColor=white" alt="Next.js" /></a>
   <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" /></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="https://sqlite.org/"><img src="https://img.shields.io/badge/SQLite-3.0-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" /></a>
@@ -38,7 +38,7 @@
   * 核心结论一句话提炼，降低阅读成本，并支持一键**“发送给家人确认”**（基于 Web Share API）。
 - ⚙️ **双模型引擎 & 隐私无忧 (Hybrid Engine)**
   * **模拟引擎 (Local Mock)**：默认无需 API Key，可在本地模拟生成高质量的分析报告与维权建议。
-  * **真实 API (Gemini Direct)**：在「设置」中输入您的 Gemini API 密钥，前端直接调用大模型，无任何中间服务器，保障数据隐私。
+  * **真实 API (Gemini Direct)**：在「设置」中输入 Gemini API 密钥后，浏览器会将本次分析内容直接发送给 Google Gemini，不经过 ClearMate 后端；使用前请避免提交不必要的敏感信息。
 - 🕒 **思考流展示 (Thinking Process Flow)**
   * AI 分析时拆解步骤（“读取文件”、“文本抽取”、“条款校验”、“套路识别”），提供渐进式进度提示，让老年人看得懂、用得安心。
 - 📋 **自动表单填充 (Auto-Fill Templates)**
@@ -165,7 +165,7 @@ ClearMate/
 
 ## 🛡️ 安全、隐私与合规
 
-1. **隐私优先**：AI 分析提取的所有文本和截图、设置的 API 密钥及用户信息全部保存在用户本地的 `localStorage` 中，绝不上送云端。
+1. **隐私优先**：本地模式的任务数据、截图、设置与用户资料保存在浏览器本地。只有用户主动选择 Gemini 或自建后端模式时，本次分析内容才会发送到对应服务商；API 密钥不会包含在数据备份中。
 2. **风险强提醒**：当用户输入的文本或截图中包含身份证号、银行卡号、手机验证码、或者引导大额转账时，UI 会进行强制性的红色警告弹窗。
 3. **法律免责声明**：AI 分析结果基于现有算法及本地数据，不构成任何具有法律效力的建议或指导，用户在采取维权、退款等涉及财务和法律的行为前，请仔细核实真实情况。
 

@@ -12,6 +12,14 @@ from app.services.file_service import FileService
 
 router = APIRouter(prefix="/files", tags=["files"])
 
+_FILE_SIGNATURES = {
+    "application/pdf": (b"%PDF-",),
+    "image/jpeg": (b"\xff\xd8\xff",),
+    "image/png": (b"\x89PNG\r\n\x1a\n",),
+    "image/gif": (b"GIF87a", b"GIF89a"),
+    "image/webp": (b"RIFF",),
+}
+
 
 def _validate_mime(mime_type: str) -> None:
     """校验 MIME 类型是否在允许列表内。"""
@@ -21,6 +29,17 @@ def _validate_mime(mime_type: str) -> None:
             status_code=415,
             detail=f"不支持的文件类型: {mime_type}。允许: {', '.join(allowed)}",
         )
+
+
+def _validate_content(content: bytes, mime_type: str) -> None:
+    """Reject empty files and obvious content-type spoofing."""
+    if not content:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+    signatures = _FILE_SIGNATURES.get(mime_type)
+    if signatures and not any(content.startswith(signature) for signature in signatures):
+        raise HTTPException(status_code=415, detail="文件内容与声明的类型不匹配")
+    if mime_type == "image/webp" and content[8:12] != b"WEBP":
+        raise HTTPException(status_code=415, detail="文件内容与声明的类型不匹配")
 
 
 @router.post("", response_model=FileOut, status_code=201)
@@ -35,13 +54,14 @@ async def upload_file(
     _validate_mime(mime_type)
 
     # 校验大小
-    content = await file.read()
     max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    content = await file.read(max_bytes + 1)
     if len(content) > max_bytes:
         raise HTTPException(
             status_code=413,
             detail=f"文件过大: {len(content)} bytes，上限 {max_bytes} bytes",
         )
+    _validate_content(content, mime_type)
 
     svc = FileService(db)
     file_record = await svc.upload(

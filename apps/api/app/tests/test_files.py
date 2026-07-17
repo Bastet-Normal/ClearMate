@@ -17,6 +17,7 @@ async def test_upload_text_file(auth_client):
     assert data["size_bytes"] == len(content)
     assert data["extracted_text"] == content.decode("utf-8")
     assert data["extraction_status"] == "done"
+    assert "storage_path" not in data
 
 
 @pytest.mark.asyncio
@@ -27,6 +28,34 @@ async def test_upload_rejects_unsupported_type(auth_client):
         files={"file": ("test.xyz", content, "application/x-unknown")},
     )
     assert r.status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_spoofed_pdf(auth_client):
+    r = await auth_client.post(
+        "/api/v1/files",
+        files={"file": ("fake.pdf", b"not really a pdf", "application/pdf")},
+    )
+    assert r.status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_empty_file(auth_client):
+    r = await auth_client.post(
+        "/api/v1/files",
+        files={"file": ("empty.txt", b"", "text/plain")},
+    )
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_upload_sanitizes_original_filename(auth_client):
+    r = await auth_client.post(
+        "/api/v1/files",
+        files={"file": ("../unsafe.txt", b"safe content", "text/plain")},
+    )
+    assert r.status_code == 201
+    assert r.json()["original_name"] == "unsafe.txt"
 
 
 @pytest.mark.asyncio

@@ -143,6 +143,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowPwd(v => !v)}
+                    aria-label={showPwd ? "隐藏密码" : "显示密码"}
                     className="text-fg-faint hover:text-fg-secondary transition-colors pointer-events-auto"
                   >
                     {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -182,7 +183,7 @@ export default function RegisterPage() {
         </div>
 
         <p className="mt-5 text-center text-xs text-fg-faint">
-          注册即表示您同意服务条款。账号数据仅保存在本地浏览器 🔒
+          注册即表示您同意服务条款。账号数据按所选模式保存在本地浏览器或自建后端 🔒
         </p>
       </div>
     </div>

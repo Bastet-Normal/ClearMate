@@ -15,6 +15,8 @@ interface ImageUploadProps {
   className?: string;
 }
 
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+
 function genId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -48,16 +50,20 @@ export function ImageUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [lightboxImg, setLightboxImg] = useState<ImageAttachment | null>(null);
   const [ocrStatus, setOcrStatus] = useState<Record<string, ImageOcrStatus>>({});
+  const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
   const addFiles = useCallback(async (files: File[]) => {
     const allowed = files.slice(0, maxImages - images.length);
     const newImages: ImageAttachment[] = [];
+    let rejected = 0;
 
     for (const file of allowed) {
-      if (!file.type.startsWith("image/")) continue;
-      if (file.size > 10 * 1024 * 1024) continue; // 10MB limit
+      if (!ALLOWED_IMAGE_TYPES.has(file.type) || file.size > 10 * 1024 * 1024) {
+        rejected += 1;
+        continue;
+      }
 
       const base64 = await fileToBase64(file);
       const dims = await getImageDimensions(base64);
@@ -78,13 +84,14 @@ export function ImageUpload({
     if (newImages.length > 0) {
       onChange([...images, ...newImages]);
     }
+    setUploadError(rejected > 0 ? `${rejected} 张图片因格式不支持或超过 10MB 未添加` : "");
   }, [images, maxImages, onChange]);
 
   // Paste from clipboard
   useEffect(() => {
     const handler = async (e: ClipboardEvent) => {
       if (disabled || images.length >= maxImages) return;
-      const files = Array.from(e.clipboardData?.files || []).filter(f => f.type.startsWith("image/"));
+      const files = Array.from(e.clipboardData?.files || []).filter(f => ALLOWED_IMAGE_TYPES.has(f.type));
       if (files.length > 0) {
         e.preventDefault();
         await addFiles(files);
@@ -148,6 +155,15 @@ export function ImageUpload({
 
   const canAdd = images.length < maxImages && !disabled;
 
+  useEffect(() => {
+    if (!lightboxImg) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightboxImg(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [lightboxImg]);
+
   return (
     <div className={cn("space-y-3", className)}>
       {/* Drop Zone — only show if can add more */}
@@ -159,11 +175,20 @@ export function ImageUpload({
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
+          role="button"
+          tabIndex={0}
+          aria-label="上传图片"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
         >
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/gif,image/webp"
             multiple
             className="hidden"
             onChange={handleFileInput}
@@ -192,6 +217,10 @@ export function ImageUpload({
         </div>
       )}
 
+      {uploadError && (
+        <p className="text-xs text-red-600 dark:text-red-400" role="alert">{uploadError}</p>
+      )}
+
       {/* Image Gallery */}
       {images.length > 0 && (
         <div className={cn(
@@ -217,12 +246,14 @@ export function ImageUpload({
                 />
 
                 {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-200 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 group-focus-within:bg-black/50 transition-all duration-200 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                   {/* Zoom */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setLightboxImg(img); }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-all"
                     title="查看大图"
+                    aria-label={`查看 ${img.fileName} 大图`}
+                    type="button"
                   >
                     <ZoomIn className="h-4 w-4" />
                   </button>
@@ -237,6 +268,8 @@ export function ImageUpload({
                       "bg-white/20 hover:bg-white/30"
                     )}
                     title={status === "done" ? "已提取文字" : "提取图片文字 (OCR)"}
+                    aria-label={status === "done" ? `${img.fileName} 已提取文字` : `提取 ${img.fileName} 的文字`}
+                    type="button"
                   >
                     {status === "loading" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -253,6 +286,8 @@ export function ImageUpload({
                     onClick={(e) => { e.stopPropagation(); removeImage(img.id); }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/70 backdrop-blur-sm text-white hover:bg-red-500 transition-all"
                     title="删除图片"
+                    aria-label={`删除 ${img.fileName}`}
+                    type="button"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -292,6 +327,8 @@ export function ImageUpload({
           {canAdd && images.length > 0 && (
             <button
               onClick={() => fileInputRef.current?.click()}
+              type="button"
+              aria-label="添加更多图片"
               className={cn(
                 "aspect-video rounded-xl border-2 border-dashed border-border-strong",
                 "flex flex-col items-center justify-center gap-1.5",
@@ -310,6 +347,9 @@ export function ImageUpload({
         <div
           className="lightbox-overlay"
           onClick={() => setLightboxImg(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="图片预览"
         >
           <div className="relative">
             <Image
@@ -323,6 +363,8 @@ export function ImageUpload({
             />
             <button
               onClick={() => setLightboxImg(null)}
+              type="button"
+              aria-label="关闭图片预览"
               className="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg hover:bg-slate-100 transition-all"
             >
               <X className="h-4 w-4" />

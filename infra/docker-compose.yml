@@ -34,7 +34,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://clearmate:clearmate@db:5432/clearmate
+      DATABASE_URL: postgresql+asyncpg://clearmate:clearmate@db:5432/clearmate
+      ENVIRONMENT: development
       LLM_PROVIDER: mock
       CORS_ORIGINS: http://localhost:3000,http://localhost
     volumes:

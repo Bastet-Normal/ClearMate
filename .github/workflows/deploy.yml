@@ -28,9 +28,31 @@ jobs:
           cache: "npm"
           cache-dependency-path: apps/web/package-lock.json
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: pip install -e ".[dev]"
+
+      - name: Check and test API
+        working-directory: apps/api
+        run: |
+          ruff check app test_smoke.py
+          pytest -q
+
       - name: Install dependencies
         working-directory: apps/web
         run: npm ci
+
+      - name: Check web quality
+        working-directory: apps/web
+        run: |
+          npm run lint
+          npm run typecheck
+          npm audit --omit=dev --audit-level=high
 
       - name: Build
         working-directory: apps/web
